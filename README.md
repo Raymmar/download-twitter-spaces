@@ -20,23 +20,33 @@ There are two ways to use the extension:
 From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Media Downloader. 
 
 From there you can pin the extension to make sure it is easily available.
+
 ![](https://gateway.ipfs.dxos.network/ipfs/QmR7Eypn85cjsHMLh78nEiVb8FQrQrb3hqHXm82pU7Yrfo)
+
 Once the extension is installed, you will be able to click on the icon to activate it and use it as intended. 
 
 If you try to access Media Downloader on URL's outside of twitter you will get this warning. 
+
 ![](https://gateway.ipfs.dxos.network/ipfs/QmX4tdmbTuCb7Bp7uqNW4mAfdwt9hTaibXwBA9XWdkpftC)
+
 To activate the extension you need to be on a Twitter.com or x.com URL and click on the play button of the Twitter Space you want to download. 
 
 The extension will not detect the audio until you start playing the space. 
+
 ![](https://gateway.ipfs.dxos.network/ipfs/QmZNBvkx4ZkFm6KJdZjWV8WRMk1WXbH7uL9EUegUXH3qz5)
+
 Once you have started the audio playback on twitter, you will have the option to click the download MP3 button in the extension. 
+
 ![](https://gateway.ipfs.dxos.network/ipfs/QmRFS4LnjtdwL3BcqVmYkziuNfoxYMXULTgFmxMyyeyjpY)
+
 From there it will process the file and deliver your mp3 download which you can save directly to your computer. 
 
 ## Saving a file
 
 After the file has processed, it will open a save dialogue box on your computer prompting you to save the file. 
+
 ![](https://gateway.ipfs.dxos.network/ipfs/QmQg9LtcGLgYphtxCzrYrhVWnyySPWQoNDPTEDD4fwK5nQ)
+
 The filename for the download will pull details from the meta description of the page you are on and include the URL details in case you need to find the post again. Below is an example file name for a file we recently downloaded. 
 
 DXOS on X t.coSFPSZvtQsR.mp3
