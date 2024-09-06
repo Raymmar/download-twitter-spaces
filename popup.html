@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Space Audio</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      min-width: 400px;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1); /* Subtle background */
+      border-top-color: #6b46c1; /* Tailwind's purple-600 */
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white p-5">
+  <h1 class="text-2xl font-bold text-center mb-6">Download Space Audio</h1>
+  <button id="downloadBtn" class="w-full bg-purple-600 text-white py-2 rounded mb-4 disabled:bg-gray-600 disabled:cursor-not-allowed">Play recording to download</button>
+  <div id="spinner" class="hidden w-10 h-10 border-4 border-solid rounded-full animate-spin mx-auto spinner"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
