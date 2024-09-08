@@ -1,12 +1,10 @@
-Media Downloader README
-
 Media Downloader - By [Raymmar.com](https://raymmar.com/)
 
 # Download Twitter Spaces audio as an mp3 for free with one click
 
 Get the extension in the Chrome Store: [Coming soon]
 
-I built this extension becaue I often need to download audio from our X.com spaces (Formerly Twitter Spaces) for use in marketing, or to re-purpose the content for other uses. Currently there is no easy way to do this natively on X.com. 
+I built this extension because I often need to download audio from our X.com spaces (Formerly Twitter Spaces) for use in marketing, or to re-purpose the content for other uses. Currently there is no easy way to do this natively on X.com. 
 
 Many of the third party solutions I have found online charge $$ simply to download my own audio and then add a bunch of features I do not need so they can justify the cost. Others solutions are overly technical or are complete scams which take your email and never deliver the audio file. After much frustration I decided to build my own tool. 
 
