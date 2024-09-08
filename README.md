@@ -8,8 +8,6 @@ I built this extension because I often need to download audio from our X.com spa
 
 Many of the third party solutions I have found online charge $$ simply to download my own audio and then add a bunch of features I do not need so they can justify the cost. Others solutions are overly technical or are complete scams which take your email and never deliver the audio file. After much frustration I decided to build my own tool. 
 
-**Note** The extension does not work on live spaces. The audio needs to be available as a replay for the extension to work. 
-
 ## How to use it
 
 There are two ways to use the extension: 
