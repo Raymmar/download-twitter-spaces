@@ -13,7 +13,7 @@ Many of the third party solutions I have found online charge $$ simply to downlo
 There are two ways to use the extension: 
 
 - **Non technical:** Install through the chrome store [coming soon]
-- **Technical:** download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (thre is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear if you are in develper mode.
+- **Technical:** download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in develper mode.
 
 From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Media Downloader. 
 
