@@ -93,7 +93,6 @@ document.addEventListener('DOMContentLoaded', function () {
   downloadButton.addEventListener('click', async () => {
     // Show the spinner and hide the button
     showSpinner();
-    document.getElementById('progressContainer').style.display = 'block';
 
     // Retrieve the stored playlist URL and Twitter Space name from chrome.storage.local
     chrome.storage.local.get(['playlistUrl', 'spaceName'], async (data) => {
@@ -139,64 +138,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Fetch and merge audio chunks into a single MP3 blob
             const audioBlob = await downloadAndMergeChunks(chunkUrls);
-            console.log("Audio blob created:", audioBlob);
 
             // Create a URL for the combined MP3 file
             const url = URL.createObjectURL(audioBlob);
-            console.log("Blob URL created:", url);
 
             // Use the sanitized Twitter Space name as the filename
-            let filename = `${sanitizeFilename(spaceName)}.mp3`;
-            console.log("Sanitized filename:", filename);
+            const filename = `${spaceName}.mp3`;
 
-            // Ensure the filename has an extension
-            if (!filename.toLowerCase().endsWith('.mp3')) {
-              filename += '.mp3';
-            }
-            console.log("Final filename:", filename);
-
-            // Log the blob details
-            console.log("Blob size:", audioBlob.size);
-            console.log("Blob type:", audioBlob.type);
-
-            // Trigger download of the MP3 file
+            // Trigger download of the MP3 file with the Twitter Space name as the filename
             chrome.downloads.download({
               url: url,
               filename: filename,
               saveAs: true
             }, function(downloadId) {
-              if (chrome.runtime.lastError) {
-                console.error("Download failed:", chrome.runtime.lastError);
-                alert("Failed to start download. Error: " + chrome.runtime.lastError.message + 
-                      "\nFilename: " + filename + 
-                      "\nBlob size: " + audioBlob.size + 
-                      "\nBlob type: " + audioBlob.type);
-              } else {
-                console.log("Download started with ID:", downloadId);
-                // Hide the progress bar and spinner
-                document.getElementById('progressContainer').style.display = 'none';
-                hideSpinner();
-                // Close the extension popup immediately after triggering the download
-                window.close();
-              }
+              // Close the extension popup immediately after triggering the download
+              window.close();
             });
           } else {
             alert("No audio chunks found in the playlist.");
             console.error("No audio chunk paths found.");
-            hideSpinner();
-            document.getElementById('progressContainer').style.display = 'none';
           }
         } catch (error) {
-          console.error("Error in download process:", error);
-          alert("Failed to process the audio. Error: " + error.message);
-          hideSpinner();
-          document.getElementById('progressContainer').style.display = 'none';
+          alert("Failed to fetch or process the M3U8 playlist.");
+          console.error("Error fetching or processing playlist:", error);
         }
       } else {
         alert("No M3U8 URL found in storage.");
         console.error("No M3U8 URL found in storage.");
-        hideSpinner();
-        document.getElementById('progressContainer').style.display = 'none';
       }
     });
   });
@@ -204,29 +172,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // Function to sanitize the filename by removing invalid characters and specific patterns
 function sanitizeFilename(filename) {
-  // Replace all non-alphanumeric characters with underscores
-  let sanitized = filename.replace(/[^a-z0-9]/gi, '_');
-  // Remove consecutive underscores
-  sanitized = sanitized.replace(/_+/g, '_');
-  // Trim underscores from start and end
-  sanitized = sanitized.replace(/^_+|_+$/g, '');
-  // Ensure the filename is not empty
-  sanitized = sanitized || 'twitter_space';
-  // Limit to 50 characters (adjust as needed)
-  sanitized = sanitized.slice(0, 50);
-  return sanitized;
+  // Remove invalid characters
+  let sanitized = filename.replace(/[\\/:*?"<>|]/g, '');
+  // Remove 'https' and trailing 'X'
+  sanitized = sanitized.replace(/https/g, '').replace(/ X$/, '');
+  // Trim any extra spaces
+  return sanitized.trim();
 }
 
 // Function to download and merge audio chunks into a single MP3 blob
 async function downloadAndMergeChunks(chunkUrls) {
   const batchSize = 10; // Number of chunks to fetch in each batch
   const audioBlobs = [];
-  const totalChunks = chunkUrls.length;
-  let processedChunks = 0;
 
   for (let i = 0; i < chunkUrls.length; i += batchSize) {
     const batchUrls = chunkUrls.slice(i, i + batchSize);
-    console.log(`Fetching batch: ${i / batchSize + 1} of ${Math.ceil(chunkUrls.length / batchSize)}`);
+    console.log(`Fetching batch: ${batchUrls}`);
 
     const batchBlobs = await Promise.all(batchUrls.map(async (url) => {
       console.log(`Fetching chunk: ${url}`);
@@ -234,8 +195,6 @@ async function downloadAndMergeChunks(chunkUrls) {
       if (!response.ok) {
         throw new Error(`Failed to fetch chunk: ${url}`);
       }
-      processedChunks++;
-      updateProgress(processedChunks, totalChunks);
       return response.blob();
     }));
 
@@ -245,11 +204,4 @@ async function downloadAndMergeChunks(chunkUrls) {
   // Combine all audio blobs into a single blob
   const combinedBlob = new Blob(audioBlobs, { type: 'audio/mpeg' });
   return combinedBlob;
-}
-
-function updateProgress(processed, total) {
-  const percentage = Math.round((processed / total) * 100);
-  const progressText = `${percentage}% (${processed}/${total})`;
-  document.getElementById('progressText').textContent = progressText;
-  document.getElementById('progressBar').style.width = `${percentage}%`;
 }

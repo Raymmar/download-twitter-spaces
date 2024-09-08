@@ -10,8 +10,8 @@
       min-width: 400px;
     }
     .spinner {
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-top-color: #6b46c1;
+      border: 4px solid rgba(255, 255, 255, 0.1); /* Subtle background */
+      border-top-color: #6b46c1; /* Tailwind's purple-600 */
       border-radius: 50%;
     }
   </style>
@@ -20,12 +20,6 @@
   <h1 class="text-2xl font-bold text-center mb-6">Download Space Audio</h1>
   <button id="downloadBtn" class="w-full bg-purple-600 text-white py-2 rounded mb-4 disabled:bg-gray-600 disabled:cursor-not-allowed">Play recording to download</button>
   <div id="spinner" class="hidden w-10 h-10 border-4 border-solid rounded-full animate-spin mx-auto spinner"></div>
-  <div id="progressContainer" class="hidden mt-4">
-    <div class="w-full bg-gray-700 rounded-full h-2.5">
-      <div id="progressBar" class="bg-purple-600 h-2.5 rounded-full" style="width: 0%"></div>
-    </div>
-    <p id="progressText" class="text-center mt-2">0% (0/0)</p>
-  </div>
   <script src="popup.js"></script>
 </body>
 </html>
