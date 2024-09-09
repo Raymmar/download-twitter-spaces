@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
   const downloadButton = document.getElementById('downloadBtn');
-  const spinner = document.getElementById('spinner');
+  const progressBar = document.getElementById('progressBar');
+  const statusElement = document.getElementById('status');
 
   // Function to reset the button state
   function resetButtonState() {
@@ -20,16 +21,22 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('Button activated');
   }
 
-  // Function to show the spinner and hide the button
-  function showSpinner() {
-    spinner.style.display = 'block';
+  // Function to show the progress bar and hide the button
+  function showProgressBar() {
+    progressBar.style.display = 'block';
     downloadButton.style.display = 'none';
   }
 
-  // Function to hide the spinner and show the button
-  function hideSpinner() {
-    spinner.style.display = 'none';
+  // Function to hide the progress bar and show the button
+  function hideProgressBar() {
+    progressBar.style.display = 'none';
     downloadButton.style.display = 'block';
+  }
+
+  // Function to update the progress bar
+  function updateProgressBar(percentage) {
+    progressBar.value = percentage;
+    progressBar.style.backgroundColor = percentage < 100 ? '#4b4b4c' : '#9c64fb'; // Dark grey for in-progress, purple for complete
   }
 
   // Function to check if the current tab's URL is from Twitter or X.com
@@ -90,118 +97,169 @@ document.addEventListener('DOMContentLoaded', function () {
   // Check the URL and M3U8 URL when the popup is loaded
   checkUrl();
 
-  downloadButton.addEventListener('click', async () => {
-    // Show the spinner and hide the button
-    showSpinner();
-
-    // Retrieve the stored playlist URL and Twitter Space name from chrome.storage.local
-    chrome.storage.local.get(['playlistUrl', 'spaceName'], async (data) => {
-      const playlistUrl = data.playlistUrl;
-      let spaceName = data.spaceName || 'twitter-space';
-
-      if (playlistUrl) {
-        console.log(`Found playlist URL: ${playlistUrl}`);
-        console.log(`Found Twitter Space name: ${spaceName}`);
-
-        // Sanitize the Twitter Space name to create a valid filename
-        spaceName = sanitizeFilename(spaceName);
-        console.log(`Sanitized Twitter Space name: ${spaceName}`);
-
-        try {
-          // Fetch the M3U8 playlist file
-          console.log(`Attempting to fetch the playlist from URL: ${playlistUrl}`);
-          const response = await fetch(playlistUrl);
-          if (!response.ok) {
-            throw new Error(`Network response was not ok: ${response.statusText}`);
-          }
-          const playlistText = await response.text();
-          console.log("Fetched playlist content:", playlistText);
-
-          // Extract the base URL from the playlist URL
-          const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-          console.log(`Base URL: ${baseUrl}`);
-
-          // Extract the relative chunk paths from the M3U8 playlist
-          const chunkPaths = playlistText.match(/chunk_[^\s]+\.aac/g);
-          console.log(`Extracted chunk paths: ${chunkPaths}`);
-
-          if (chunkPaths && chunkPaths.length > 0) {
-            console.log("Found audio chunk paths:", chunkPaths);
-
-            // Prepend the base URL to each chunk path
-            const chunkUrls = chunkPaths.map(chunkPath => {
-              const fullUrl = baseUrl + chunkPath;
-              console.log(`Full chunk URL: ${fullUrl}`);
-              return fullUrl;
-            });
-            console.log("Full chunk URLs:", chunkUrls);
-
-            // Fetch and merge audio chunks into a single MP3 blob
-            const audioBlob = await downloadAndMergeChunks(chunkUrls);
-
-            // Create a URL for the combined MP3 file
-            const url = URL.createObjectURL(audioBlob);
-
-            // Use the sanitized Twitter Space name as the filename
-            const filename = `${spaceName}.mp3`;
-
-            // Trigger download of the MP3 file with the Twitter Space name as the filename
-            chrome.downloads.download({
-              url: url,
-              filename: filename,
-              saveAs: true
-            }, function(downloadId) {
-              // Close the extension popup immediately after triggering the download
-              window.close();
-            });
-          } else {
-            alert("No audio chunks found in the playlist.");
-            console.error("No audio chunk paths found.");
-          }
-        } catch (error) {
-          alert("Failed to fetch or process the M3U8 playlist.");
-          console.error("Error fetching or processing playlist:", error);
+  async function checkPermissions() {
+    return new Promise((resolve) => {
+      chrome.permissions.contains({
+        permissions: ['downloads']
+      }, (result) => {
+        if (result) {
+          console.log('Downloads permission is granted');
+          resolve(true);
+        } else {
+          console.error('Downloads permission is not granted');
+          updateStatus('Error: Downloads permission is not granted');
+          resolve(false);
         }
-      } else {
-        alert("No M3U8 URL found in storage.");
-        console.error("No M3U8 URL found in storage.");
-      }
+      });
     });
-  });
-});
-
-// Function to sanitize the filename by removing invalid characters and specific patterns
-function sanitizeFilename(filename) {
-  // Remove invalid characters
-  let sanitized = filename.replace(/[\\/:*?"<>|]/g, '');
-  // Remove 'https' and trailing 'X'
-  sanitized = sanitized.replace(/https/g, '').replace(/ X$/, '');
-  // Trim any extra spaces
-  return sanitized.trim();
-}
-
-// Function to download and merge audio chunks into a single MP3 blob
-async function downloadAndMergeChunks(chunkUrls) {
-  const batchSize = 10; // Number of chunks to fetch in each batch
-  const audioBlobs = [];
-
-  for (let i = 0; i < chunkUrls.length; i += batchSize) {
-    const batchUrls = chunkUrls.slice(i, i + batchSize);
-    console.log(`Fetching batch: ${batchUrls}`);
-
-    const batchBlobs = await Promise.all(batchUrls.map(async (url) => {
-      console.log(`Fetching chunk: ${url}`);
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch chunk: ${url}`);
-      }
-      return response.blob();
-    }));
-
-    audioBlobs.push(...batchBlobs);
   }
 
-  // Combine all audio blobs into a single blob
-  const combinedBlob = new Blob(audioBlobs, { type: 'audio/mpeg' });
-  return combinedBlob;
-}
+  downloadButton.addEventListener('click', async () => {
+    showProgressBar();
+    updateStatus('Starting download process...');
+
+    if (!(await checkPermissions())) {
+      hideProgressBar();
+      return;
+    }
+
+    try {
+      const data = await new Promise((resolve) => chrome.storage.local.get(['playlistUrl', 'spaceName'], resolve));
+      let { playlistUrl, spaceName = 'twitter_space' } = data;
+
+      if (!playlistUrl) {
+        throw new Error('No M3U8 URL found in storage.');
+      }
+
+      // Ensure spaceName is a string and trim it
+      spaceName = String(spaceName).trim();
+
+      // If spaceName is empty after trimming, use a default name
+      if (spaceName.length === 0) {
+        spaceName = 'twitter_space';
+      }
+
+      updateStatus('Fetching playlist...');
+      const response = await fetch(playlistUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch playlist: ${response.statusText}`);
+      }
+
+      const playlistText = await response.text();
+      updateStatus('Parsing playlist...');
+      console.log('Playlist content:', playlistText);
+      const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
+      const chunkPaths = playlistText.match(/chunk_[^\s]+\.aac/g);
+
+      if (!chunkPaths || chunkPaths.length === 0) {
+        throw new Error('No audio chunks found in the playlist.');
+      }
+
+      const chunkUrls = chunkPaths.map(chunkPath => baseUrl + chunkPath);
+      updateStatus(`Found ${chunkUrls.length} audio chunks. Downloading...`);
+
+      const audioBlob = await downloadAndMergeChunks(chunkUrls);
+      updateStatus('Audio chunks merged. Preparing download...');
+      console.log('Audio blob size:', audioBlob.size);
+
+      const filename = sanitizeFilename(spaceName);
+      console.log('Sanitized filename:', filename);
+
+      updateStatus('Initiating download...');
+      console.log('Attempting to save file:', filename);
+      await initiateDownload(audioBlob, filename);
+    } catch (error) {
+      console.error('Process failed:', error);
+      updateStatus(`Error: ${error.message}`);
+    } finally {
+      hideProgressBar();
+    }
+  });
+
+  async function downloadAndMergeChunks(chunkUrls) {
+    const allChunks = [];
+    const totalChunks = chunkUrls.length;
+
+    for (let i = 0; i < totalChunks; i++) {
+      updateStatus(`Downloading chunk ${i + 1} of ${totalChunks}...`);
+      try {
+        const response = await fetchWithRetry(chunkUrls[i]);
+        const arrayBuffer = await response.arrayBuffer();
+        allChunks.push(arrayBuffer);
+        updateProgressBar(Math.round(((i + 1) / totalChunks) * 100));
+      } catch (error) {
+        console.error(`Failed to download chunk ${i + 1}:`, error);
+        // Continue with the next chunk
+      }
+    }
+
+    if (allChunks.length === 0) {
+      throw new Error('Failed to download any audio chunks.');
+    }
+
+    updateStatus('Merging audio chunks...');
+    return new Blob(allChunks, { type: 'audio/mpeg' });
+  }
+
+  async function fetchWithRetry(url, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response;
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+      }
+    }
+  }
+
+  async function initiateDownload(blob, filename) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      console.log('Initiating download with URL:', url);
+      chrome.downloads.download({
+        url: url,
+        filename: filename,
+        saveAs: true
+      }, (downloadId) => {
+        if (chrome.runtime.lastError) {
+          console.error('Download failed:', chrome.runtime.lastError);
+          updateStatus(`Error: ${chrome.runtime.lastError.message}`);
+          URL.revokeObjectURL(url);
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          console.log('Download initiated with ID:', downloadId);
+          URL.revokeObjectURL(url);
+          resolve(downloadId);
+        }
+      });
+    });
+  }
+
+  function updateStatus(message) {
+    if (statusElement) {
+      statusElement.textContent = message;
+    }
+    console.log(message);
+  }
+
+  function sanitizeFilename(filename) {
+    // Remove any non-alphanumeric characters except spaces, dashes, and underscores
+    let sanitized = filename.replace(/[^a-z0-9\s-_]/gi, '')
+      // Replace spaces with underscores
+      .replace(/\s+/g, '_')
+      // Remove any leading or trailing underscores or dashes
+      .replace(/^[-_]+|[-_]+$/g, '')
+      // Limit to 20 characters
+      .slice(0, 20);
+  
+    // If the sanitized string is empty, use a default name
+    if (sanitized.length === 0) {
+      sanitized = 'twitter_space_audio';
+    }
+  
+    // Append .mp3 extension
+    return sanitized + '.mp3';
+  }
+});

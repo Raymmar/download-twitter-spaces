@@ -13,7 +13,7 @@ Many of the third party solutions I have found online charge $$ simply to downlo
 There are two ways to use the extension: 
 
 - **Non technical:** Install through the chrome store [coming soon]
-- **Technical:** download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in develper mode.
+- **Technical:** download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in developer mode.
 
 From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Media Downloader. 
 
@@ -41,23 +41,17 @@ From there it will process the file and deliver your mp3 download which you can 
 
 ## Saving a file
 
-After the file has processed, it will open a save dialogue box on your computer prompting you to save the file. 
+After the file has been processed, it will open a save dialogue box on your computer prompting you to save the file. 
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmQg9LtcGLgYphtxCzrYrhVWnyySPWQoNDPTEDD4fwK5nQ)
 
-The filename for the download will pull details from the meta description of the page you are on and include the URL details in case you need to find the post again. Below is an example file name for a file we recently downloaded. 
-
-DXOS on X t.coSFPSZvtQsR.mp3
-
-The extension sanitizes the URL (removes invalid characters like /) so you will need to insert those if you want to access the URL in the future. For instance in the example above to get back to the URL you would need to edit the URL structure to [t.co/SFPSZvtQsR] by inserting the / between the .co and the URL hash on the right. 
-
-You can also just replace this default file name with whatever you want before saving the file. 
+You can replace the default file name with whatever you want before saving the file. 
 
 ## How it works
 
-Twitter obfuscates your audio recordings and then chops them up in to 3 second .acc files which they then combine at runtime to recreate the recording. This makes it difficult to download your audio as you cannot just inspect the page and look for an mp3 file to download. 
+Twitter obfuscates your audio recordings and then chops them up into 3 second .acc files which they then combine at runtime to recreate the recording. This makes it difficult to download your audio as you cannot just inspect the page and look for an mp3 file to download. 
 
-This extension works by montors network activity in the browser when activated, and searching for a M3U8 URL which is a playlist that tells the server which .aac files to send back and in what order. 
+This extension works by monitoring network activity in the browser when activated, and searching for a M3U8 URL which is a playlist that tells the server which .aac files to send back and in what order. 
 
 Once the extension finds that URL, it assembles all of the .aac files, and combines them into a final audio file that you can download as an mp3. 
 
@@ -73,6 +67,7 @@ The extension does need certain permissions in the browser to work properly, but
 - I am thinking about adding the ability to download videos from twitter as well as YouTube
 - I am also thinking about adding the ability to download YouTube thumbnails with the extension as I often find myself using external services for this as well.
 - Maybe this thing could connect to an LLM and spit out a transcript of the twitter space as well?
-- I have many other ideas, but who knows what if anything else I will do with it.
+- I have many other ideas, but who knows what else I will do with it.
 
-You are welcome to fork the repo and buold your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out or leave a comment here on GitHub. 
+You are welcome to fork the repo and build your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out or leave a comment here on GitHub. 
+
