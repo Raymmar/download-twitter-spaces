@@ -39,6 +39,8 @@ const observer = new PerformanceObserver((list) => {
       // Store the URL and name in chrome.storage.local
       chrome.storage.local.set({ playlistUrl: entry.name, spaceName: spaceName }, () => {
         console.log("Successfully stored the M3U8 URL and Twitter Space name from content script:", entry.name, spaceName);
+        // Disconnect the observer after capturing the URL
+        observer.disconnect();
       });
     }
   });
