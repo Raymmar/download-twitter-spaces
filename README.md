@@ -1,25 +1,27 @@
-Media Downloader - By [Raymmar.com](https://raymmar.com/)
-
 # Download Twitter Spaces audio as an mp3 for free with one click
 
-Get the extension in the Chrome Store: [Coming soon]
+By [Raymmar.com](https://raymmar.com/) & [Atmos](https://atmospr.com/)
 
-I built this extension because I often need to download audio from our X.com spaces (Formerly Twitter Spaces) for use in marketing, or to re-purpose the content for other uses. Currently there is no easy way to do this natively on X.com. 
+- Install the extension on [Chrome](https://chromewebstore.google.com/detail/download-twitter-spaces/hjgpigfbmdlajibmebhndhjiiohodgfi?authuser=0&hl=en)
 
-Many of the third party solutions I have found online charge $$ simply to download my own audio and then add a bunch of features I do not need so they can justify the cost. Others solutions are overly technical or are complete scams which take your email and never deliver the audio file. After much frustration I decided to build my own tool. 
+This extension allows you to download audio from x.com Spaces (formerly Twitter) with one click. Currently there is no easy way to do this natively and other solutions charge monthly fee's for this simple functionality.
 
-## How to use it
++ Install the extension
++ Open a twitter/x.com URL with a space recording
++ Start recording playback
++ Activate extension and click download mp3
 
-There are two ways to use the extension: 
+## How to install this extension locally
 
-- **Non technical:** Install through the chrome store [coming soon]
-- **Technical:** download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in developer mode.
+If you do not want to install the extension from the chrome web store you can also download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in developer mode.
 
 From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Media Downloader. 
 
-From there you can pin the extension to make sure it is easily available.
+From there you should pin the extension to make sure it is easily available.
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmR7Eypn85cjsHMLh78nEiVb8FQrQrb3hqHXm82pU7Yrfo)
+
+## How to use this extension
 
 Once the extension is installed, you will be able to click on the icon to activate it and use it as intended. 
 
@@ -27,9 +29,7 @@ If you try to access Media Downloader on URL's outside of twitter you will get t
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmX4tdmbTuCb7Bp7uqNW4mAfdwt9hTaibXwBA9XWdkpftC)
 
-To activate the extension you need to be on a Twitter.com or x.com URL and click on the play button of the Twitter Space you want to download. 
-
-The extension will not detect the audio until you start playing the space. 
+To activate the extension you need to be on a Twitter.com or x.com URL and click on the play button of the Twitter Space you want to download. **The extension will not detect the audio until you start playing the space.**
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmZNBvkx4ZkFm6KJdZjWV8WRMk1WXbH7uL9EUegUXH3qz5)
 
@@ -57,7 +57,9 @@ Once the extension finds that URL, it assembles all of the .aac files, and combi
 
 ## Privacy
 
-There is no backend to this extension which means none of your activity passes through a centralized server. This means we can not track your usage or see what you download. This also means we do not store your user sessions or even know what you are doing with the extension. No one does except you and Chrome of course. 
+There is no backend to this extension which means none of your activity passes through a centralized server. This also means we can not track your usage or see what you download. 
+
+We do not store your sessions or even know what you are doing with the extension. No one does except you and Chrome of course.
 
 The extension does need certain permissions in the browser to work properly, but be sure that we are not monitoring your web usage, or tracking any of your online behavior. This is one of the reasons I have open sourced the code so that people can know exactly what the extension is doing or even run it locally if you prefer. 
 

@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Media Downloader",
-    "version": "1.0",
-    "description": "Download media from authorized websites.",
+    "name": "Download Twitter Spaces",
+    "version": "1.1",
+    "description": "Download Twitter Spaces audio as an mp3 for free with one click",
     "icons": {
         "16": "icons/icon16.png",
         "48": "icons/icon48.png",
