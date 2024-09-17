@@ -4,7 +4,7 @@ By [Raymmar.com](https://raymmar.com/) & [Atmos](https://atmospr.com/)
 
 - Install the extension on [Chrome](https://chromewebstore.google.com/detail/download-twitter-spaces/hjgpigfbmdlajibmebhndhjiiohodgfi?authuser=0&hl=en)
 
-This extension allows you to download audio from x.com Spaces (formerly Twitter) with one click. Currently there is no easy way to do this natively and other solutions charge monthly fee's for this simple functionality.
+This extension allows you to download audio from x.com Spaces (formerly Twitter) for free,with one click.
 
 + Install the extension
 + Open a twitter/x.com URL with a space recording
@@ -15,7 +15,7 @@ This extension allows you to download audio from x.com Spaces (formerly Twitter)
 
 If you do not want to install the extension from the chrome web store you can also download the files here in GitHub (download a zip file) and then unzip the file, go to [manage chrome extensions](chrome://extensions/) activate developer mode (there is a switch in the top right corner of this page) and then click on the Load Unpacked Extension button which will only appear while you are in developer mode.
 
-From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Media Downloader. 
+From there you need to locate the (unzipped) file and select it. If you did this correctly you will see a new item in your extension manager dropdown for Twitter Space Downloader. 
 
 From there you should pin the extension to make sure it is easily available.
 
@@ -25,7 +25,7 @@ From there you should pin the extension to make sure it is easily available.
 
 Once the extension is installed, you will be able to click on the icon to activate it and use it as intended. 
 
-If you try to access Media Downloader on URL's outside of twitter you will get this warning. 
+If you try to access Twitter Space Downloader on URL's outside of twitter you will get a warning. 
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmX4tdmbTuCb7Bp7uqNW4mAfdwt9hTaibXwBA9XWdkpftC)
 
@@ -71,5 +71,5 @@ The extension does need certain permissions in the browser to work properly, but
 - Maybe this thing could connect to an LLM and spit out a transcript of the twitter space as well?
 - I have many other ideas, but who knows what else I will do with it.
 
-You are welcome to fork the repo and build your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out or leave a comment here on GitHub. 
+You are welcome to fork the repo and build your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out on [twitter](https://x.com/@raymmar_https) or leave a review on the chrome web store.
 
