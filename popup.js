@@ -183,25 +183,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     try {
-      const data = await new Promise((resolve) => chrome.storage.local.get(['playlistUrl', 'spaceName'], resolve));
-      let { playlistUrl, spaceName = 'twitter_space' } = data;
+      const { playlistUrl, spaceName = 'twitter_space' } = await chrome.storage.local.get(['playlistUrl', 'spaceName']);
 
       if (!playlistUrl) {
         throw new Error('No M3U8 URL found in storage.');
       }
 
-      // Ensure spaceName is a string and trim it
-      spaceName = String(spaceName).trim();
-
-      // If spaceName is empty after trimming, use a default name
-      if (spaceName.length === 0) {
-        spaceName = 'twitter_space';
-      }
-
       chrome.runtime.sendMessage({ 
         action: 'startDownload', 
-        playlistUrl: playlistUrl, 
-        spaceName: spaceName 
+        playlistUrl, 
+        spaceName: String(spaceName).trim() || 'twitter_space'
       });
     } catch (error) {
       console.error('Process failed:', error);

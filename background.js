@@ -60,25 +60,37 @@ async function fetchAndParsePlaylist(playlistUrl) {
 async function downloadAndMergeChunks(chunkUrls) {
   const allChunks = [];
   const totalChunks = chunkUrls.length;
+  const concurrentDownloads = 5; // Adjust based on testing
 
-  for (let i = 0; i < totalChunks; i++) {
-    try {
-      const response = await fetchWithRetry(chunkUrls[i]);
-      const arrayBuffer = await response.arrayBuffer();
-      allChunks.push(arrayBuffer);
-      const progress = Math.round(((i + 1) / totalChunks) * 100);
-      chrome.storage.local.set({ downloadProgress: progress });
-      chrome.runtime.sendMessage({ 
-        action: 'updateDownloadState', 
-        isDownloading: true,
-        progress: progress
-      });
-    } catch (error) {
-      console.error(`Failed to download chunk ${i + 1}:`, error);
-    }
+  for (let i = 0; i < totalChunks; i += concurrentDownloads) {
+    const chunkPromises = chunkUrls.slice(i, i + concurrentDownloads).map(async (url, index) => {
+      try {
+        const response = await fetchWithRetry(url);
+        const arrayBuffer = await response.arrayBuffer();
+        return { index: i + index, arrayBuffer };
+      } catch (error) {
+        console.error(`Failed to download chunk ${i + index + 1}:`, error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(chunkPromises);
+    results.forEach(result => {
+      if (result) {
+        allChunks[result.index] = result.arrayBuffer;
+      }
+    });
+
+    const progress = Math.round(((i + concurrentDownloads) / totalChunks) * 100);
+    chrome.storage.local.set({ downloadProgress: progress });
+    chrome.runtime.sendMessage({ 
+      action: 'updateDownloadState', 
+      isDownloading: true,
+      progress: Math.min(progress, 100)
+    });
   }
 
-  return new Blob(allChunks, { type: 'audio/mpeg' });
+  return new Blob(allChunks.filter(Boolean), { type: 'audio/mpeg' });
 }
 
 async function fetchWithRetry(url, retries = 3) {
