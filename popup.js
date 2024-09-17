@@ -131,9 +131,27 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Add this to check the download state when popup opens
-  chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
-    updateUIState(data.isDownloading, data.downloadProgress || 0);
+  // Add this function after the existing functions
+  function resetUIState() {
+    hideProgressBar();
+    activateButton();
+    updateStatus('');
+  }
+
+  // Modify the DOMContentLoaded event listener
+  document.addEventListener('DOMContentLoaded', function () {
+    // ... (rest of the code)
+
+    // Add this to check the download state when popup opens
+    chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
+      if (data.isDownloading) {
+        updateUIState(data.isDownloading, data.downloadProgress || 0);
+      } else {
+        resetUIState();
+      }
+    });
+
+    // ... (rest of the code)
   });
 
   // Update the chrome.runtime.onMessage listener

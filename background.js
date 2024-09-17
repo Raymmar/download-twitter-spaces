@@ -40,12 +40,13 @@ async function startDownload(playlistUrl, spaceName) {
     const filename = sanitizeFilename(spaceName);
     await initiateDownload(audioBlob, filename);
 
-    chrome.storage.local.set({ isDownloading: false, downloadProgress: 100 });
+    // Clear the download state
+    chrome.storage.local.remove(['isDownloading', 'downloadProgress']);
     chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: false });
   } catch (error) {
     console.error('Download failed:', error);
     chrome.runtime.sendMessage({ action: 'downloadError', error: error.message });
-    chrome.storage.local.set({ isDownloading: false, downloadProgress: 0 });
+    chrome.storage.local.remove(['isDownloading', 'downloadProgress']);
   }
 }
 
