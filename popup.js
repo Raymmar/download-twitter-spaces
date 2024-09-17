@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } else if (progress === 100) {
       hideProgressBar();
       updateStatus('Download complete!');
-      // Don't show the button here
+      downloadButton.style.display = 'block';
     } else {
       hideProgressBar();
       activateButton();

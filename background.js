@@ -33,20 +33,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function startDownload(playlistUrl, spaceName) {
   try {
     chrome.storage.local.set({ isDownloading: true, downloadProgress: 0 });
-    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: true });
+    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: true, progress: 0 });
 
     const chunkUrls = await fetchAndParsePlaylist(playlistUrl);
     const audioBlob = await downloadAndMergeChunks(chunkUrls);
     const filename = sanitizeFilename(spaceName);
     await initiateDownload(audioBlob, filename);
 
-    // Clear the download state
-    chrome.storage.local.remove(['isDownloading', 'downloadProgress']);
-    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: false });
+    chrome.storage.local.set({ isDownloading: false, downloadProgress: 100 });
+    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: false, progress: 100 });
   } catch (error) {
     console.error('Download failed:', error);
     chrome.runtime.sendMessage({ action: 'downloadError', error: error.message });
-    chrome.storage.local.remove(['isDownloading', 'downloadProgress']);
+    chrome.storage.local.set({ isDownloading: false, downloadProgress: 0 });
   }
 }
 
@@ -70,7 +69,8 @@ async function downloadAndMergeChunks(chunkUrls) {
       const progress = Math.round(((i + 1) / totalChunks) * 100);
       chrome.storage.local.set({ downloadProgress: progress });
       chrome.runtime.sendMessage({ 
-        action: 'updateProgress', 
+        action: 'updateDownloadState', 
+        isDownloading: true,
         progress: progress
       });
     } catch (error) {
