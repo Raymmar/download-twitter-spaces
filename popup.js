@@ -3,6 +3,24 @@ document.addEventListener('DOMContentLoaded', function () {
   const progressBar = document.getElementById('progressBar');
   const statusElement = document.getElementById('status');
 
+  // Add this function at the beginning of the file
+  function checkDownloadStatus() {
+    chrome.storage.local.get(['isDownloading', 'downloadComplete'], function(data) {
+      if (data.isDownloading) {
+        showProgressBar();
+        downloadButton.style.display = 'none';
+      } else if (data.downloadComplete) {
+        hideProgressBar();
+        updateStatus('Download complete!');
+        downloadButton.style.display = 'none';
+      } else {
+        hideProgressBar();
+        downloadButton.style.display = 'block';
+        updateStatus('');
+      }
+    });
+  }
+
   // Function to reset the button state
   function resetButtonState() {
     downloadButton.disabled = true;
@@ -114,20 +132,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Add this function to update UI based on download state
+  // Modify the updateUIState function
   function updateUIState(isDownloading, progress) {
-    if (isDownloading) {
+    if (isDownloading || progress === 100) {
       showProgressBar();
       updateProgressBar(progress);
-      updateStatus(`Downloading: ${progress}%`);
       downloadButton.style.display = 'none';
-    } else if (progress === 100) {
-      hideProgressBar();
-      updateStatus('Download complete!');
-      downloadButton.style.display = 'block';
+      if (progress === 100) {
+        updateStatus('Download complete! Preparing File...');
+      } else {
+        updateStatus(`Downloading: ${progress}%`);
+      }
     } else {
       hideProgressBar();
-      activateButton();
+      downloadButton.style.display = 'block';
+      updateStatus('');
     }
   }
 
@@ -144,11 +163,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add this to check the download state when popup opens
     chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
-      if (data.isDownloading) {
-        updateUIState(data.isDownloading, data.downloadProgress || 0);
-      } else {
-        resetUIState();
-      }
+      updateUIState(data.isDownloading, data.downloadProgress || 0);
     });
 
     // ... (rest of the code)
@@ -157,28 +172,24 @@ document.addEventListener('DOMContentLoaded', function () {
   // Update the chrome.runtime.onMessage listener
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'updateProgress') {
-      updateProgressBar(message.progress);
-      updateStatus(`Downloading: ${message.progress}%`);
+      updateUIState(true, message.progress);
     } else if (message.action === 'downloadError') {
       updateStatus(`Error: ${message.error}`);
       hideProgressBar();
-      activateButton();
+      downloadButton.style.display = 'block';
     } else if (message.action === 'downloadComplete') {
       updateUIState(false, 100);
-      updateStatus('Download complete!');
     } else if (message.action === 'updateDownloadState') {
       updateUIState(message.isDownloading, message.progress);
     }
   });
 
-  // Update the downloadButton click event listener
+  // Modify the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
-    showProgressBar();
-    updateStatus('Starting download process...');
-    downloadButton.style.display = 'none';
+    updateUIState(true, 0);
 
     if (!(await checkPermissions())) {
-      hideProgressBar();
+      updateUIState(false, 0);
       return;
     }
 
@@ -197,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (error) {
       console.error('Process failed:', error);
       updateStatus(`Error: ${error.message}`);
-      hideProgressBar();
+      updateUIState(false, 0);
     }
   });
 

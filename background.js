@@ -1,5 +1,5 @@
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ isDownloading: false, downloadProgress: 0 });
+  chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
 });
 
 function onRequestCompleted(details) {
@@ -41,7 +41,7 @@ async function startDownload(playlistUrl, spaceName) {
     await initiateDownload(audioBlob, filename);
 
     chrome.storage.local.set({ isDownloading: false, downloadProgress: 100 });
-    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: false, progress: 100 });
+    chrome.runtime.sendMessage({ action: 'downloadComplete' });
   } catch (error) {
     console.error('Download failed:', error);
     chrome.runtime.sendMessage({ action: 'downloadError', error: error.message });
@@ -131,15 +131,18 @@ async function initiateDownload(blob, filename) {
       if (chrome.runtime.lastError) {
         console.error('Download failed:', chrome.runtime.lastError);
         chrome.runtime.sendMessage({ action: 'downloadError', error: chrome.runtime.lastError.message });
+        chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
       } else {
         console.log('Download initiated with ID:', downloadId);
         chrome.runtime.sendMessage({ action: 'downloadComplete' });
+        chrome.storage.local.set({ isDownloading: false, downloadComplete: true });
       }
     });
   };
   reader.onerror = function(error) {
     console.error('FileReader error:', error);
     chrome.runtime.sendMessage({ action: 'downloadError', error: 'Failed to process audio data' });
+    chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
   };
   reader.readAsDataURL(blob);
 }
