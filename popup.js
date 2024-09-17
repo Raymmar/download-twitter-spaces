@@ -3,6 +3,24 @@ document.addEventListener('DOMContentLoaded', function () {
   const progressBar = document.getElementById('progressBar');
   const statusElement = document.getElementById('status');
 
+  // Add this function at the beginning of the file
+  function checkDownloadStatus() {
+    chrome.storage.local.get(['isDownloading', 'downloadComplete'], function(data) {
+      if (data.isDownloading) {
+        showProgressBar();
+        downloadButton.style.display = 'none';
+      } else if (data.downloadComplete) {
+        hideProgressBar();
+        updateStatus('Download complete!');
+        downloadButton.style.display = 'none';
+      } else {
+        hideProgressBar();
+        downloadButton.style.display = 'block';
+        updateStatus('');
+      }
+    });
+  }
+
   // Function to reset the button state
   function resetButtonState() {
     downloadButton.disabled = true;
@@ -114,65 +132,83 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Modify the updateUIState function
+  function updateUIState(isDownloading, progress) {
+    if (isDownloading || progress === 100) {
+      showProgressBar();
+      updateProgressBar(progress);
+      downloadButton.style.display = 'none';
+      if (progress === 100) {
+        updateStatus('Download complete! Preparing File...');
+      } else {
+        updateStatus(`Downloading: ${progress}%`);
+      }
+    } else {
+      hideProgressBar();
+      downloadButton.style.display = 'block';
+      updateStatus('');
+    }
+  }
+
+  // Add this function after the existing functions
+  function resetUIState() {
+    hideProgressBar();
+    activateButton();
+    updateStatus('');
+  }
+
+  // Modify the DOMContentLoaded event listener
+  document.addEventListener('DOMContentLoaded', function () {
+    // ... (rest of the code)
+
+    // Add this to check the download state when popup opens
+    chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
+      updateUIState(data.isDownloading, data.downloadProgress || 0);
+    });
+
+    // ... (rest of the code)
+  });
+
+  // Update the chrome.runtime.onMessage listener
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'updateProgress') {
+      updateUIState(true, message.progress);
+    } else if (message.action === 'downloadError') {
+      updateStatus(`Error: ${message.error}`);
+      hideProgressBar();
+      downloadButton.style.display = 'block';
+    } else if (message.action === 'downloadComplete') {
+      updateUIState(false, 100);
+    } else if (message.action === 'updateDownloadState') {
+      updateUIState(message.isDownloading, message.progress);
+    }
+  });
+
+  // Modify the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
-    showProgressBar();
-    updateStatus('Starting download process...');
+    updateUIState(true, 0);
 
     if (!(await checkPermissions())) {
-      hideProgressBar();
+      updateUIState(false, 0);
       return;
     }
 
     try {
-      const data = await new Promise((resolve) => chrome.storage.local.get(['playlistUrl', 'spaceName'], resolve));
-      let { playlistUrl, spaceName = 'twitter_space' } = data;
+      const { playlistUrl, spaceName = 'twitter_space' } = await chrome.storage.local.get(['playlistUrl', 'spaceName']);
 
       if (!playlistUrl) {
         throw new Error('No M3U8 URL found in storage.');
       }
 
-      // Ensure spaceName is a string and trim it
-      spaceName = String(spaceName).trim();
-
-      // If spaceName is empty after trimming, use a default name
-      if (spaceName.length === 0) {
-        spaceName = 'twitter_space';
-      }
-
-      updateStatus('Fetching playlist...');
-      const response = await fetch(playlistUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch playlist: ${response.statusText}`);
-      }
-
-      const playlistText = await response.text();
-      updateStatus('Parsing playlist...');
-      console.log('Playlist content:', playlistText);
-      const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-      const chunkPaths = playlistText.match(/chunk_[^\s]+\.aac/g);
-
-      if (!chunkPaths || chunkPaths.length === 0) {
-        throw new Error('No audio chunks found in the playlist.');
-      }
-
-      const chunkUrls = chunkPaths.map(chunkPath => baseUrl + chunkPath);
-      updateStatus(`Found ${chunkUrls.length} audio chunks. Downloading...`);
-
-      const audioBlob = await downloadAndMergeChunks(chunkUrls);
-      updateStatus('Audio chunks merged. Preparing download...');
-      console.log('Audio blob size:', audioBlob.size);
-
-      const filename = sanitizeFilename(spaceName);
-      console.log('Sanitized filename:', filename);
-
-      updateStatus('Initiating download...');
-      console.log('Attempting to save file:', filename);
-      await initiateDownload(audioBlob, filename);
+      chrome.runtime.sendMessage({ 
+        action: 'startDownload', 
+        playlistUrl, 
+        spaceName: String(spaceName).trim() || 'twitter_space'
+      });
     } catch (error) {
       console.error('Process failed:', error);
       updateStatus(`Error: ${error.message}`);
-    } finally {
-      hideProgressBar();
+      updateUIState(false, 0);
     }
   });
 
