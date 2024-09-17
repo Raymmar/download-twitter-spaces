@@ -114,9 +114,50 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Add this function to update UI based on download state
+  function updateUIState(isDownloading, progress) {
+    if (isDownloading) {
+      showProgressBar();
+      updateProgressBar(progress);
+      updateStatus(`Downloading: ${progress}%`);
+      downloadButton.style.display = 'none';
+    } else if (progress === 100) {
+      hideProgressBar();
+      updateStatus('Download complete!');
+      // Don't show the button here
+    } else {
+      hideProgressBar();
+      activateButton();
+    }
+  }
+
+  // Add this to check the download state when popup opens
+  chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
+    updateUIState(data.isDownloading, data.downloadProgress || 0);
+  });
+
+  // Update the chrome.runtime.onMessage listener
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'updateProgress') {
+      updateProgressBar(message.progress);
+      updateStatus(`Downloading: ${message.progress}%`);
+    } else if (message.action === 'downloadError') {
+      updateStatus(`Error: ${message.error}`);
+      hideProgressBar();
+      activateButton();
+    } else if (message.action === 'downloadComplete') {
+      updateUIState(false, 100);
+      updateStatus('Download complete!');
+    } else if (message.action === 'updateDownloadState') {
+      updateUIState(message.isDownloading, message.progress);
+    }
+  });
+
+  // Update the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
     showProgressBar();
     updateStatus('Starting download process...');
+    downloadButton.style.display = 'none';
 
     if (!(await checkPermissions())) {
       hideProgressBar();
@@ -139,39 +180,14 @@ document.addEventListener('DOMContentLoaded', function () {
         spaceName = 'twitter_space';
       }
 
-      updateStatus('Fetching playlist...');
-      const response = await fetch(playlistUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch playlist: ${response.statusText}`);
-      }
-
-      const playlistText = await response.text();
-      updateStatus('Parsing playlist...');
-      console.log('Playlist content:', playlistText);
-      const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-      const chunkPaths = playlistText.match(/chunk_[^\s]+\.aac/g);
-
-      if (!chunkPaths || chunkPaths.length === 0) {
-        throw new Error('No audio chunks found in the playlist.');
-      }
-
-      const chunkUrls = chunkPaths.map(chunkPath => baseUrl + chunkPath);
-      updateStatus(`Found ${chunkUrls.length} audio chunks. Downloading...`);
-
-      const audioBlob = await downloadAndMergeChunks(chunkUrls);
-      updateStatus('Audio chunks merged. Preparing download...');
-      console.log('Audio blob size:', audioBlob.size);
-
-      const filename = sanitizeFilename(spaceName);
-      console.log('Sanitized filename:', filename);
-
-      updateStatus('Initiating download...');
-      console.log('Attempting to save file:', filename);
-      await initiateDownload(audioBlob, filename);
+      chrome.runtime.sendMessage({ 
+        action: 'startDownload', 
+        playlistUrl: playlistUrl, 
+        spaceName: spaceName 
+      });
     } catch (error) {
       console.error('Process failed:', error);
       updateStatus(`Error: ${error.message}`);
-    } finally {
       hideProgressBar();
     }
   });
