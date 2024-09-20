@@ -28,6 +28,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'startDownload') {
     startDownload(message.playlistUrl, message.spaceName);
   }
+  if (message.action === 'resetState') {
+    chrome.storage.local.clear(() => {
+      console.log('Background: Storage cleared');
+      // Reset any other background state variables if necessary
+    });
+  }
 });
 
 async function startDownload(playlistUrl, spaceName) {

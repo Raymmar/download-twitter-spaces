@@ -2,24 +2,51 @@ document.addEventListener('DOMContentLoaded', function () {
   const downloadButton = document.getElementById('downloadBtn');
   const progressBar = document.getElementById('progressBar');
   const statusElement = document.getElementById('status');
+  const mainContent = document.getElementById('mainContent');
+  const successScreen = document.getElementById('successScreen');
+  const startOverBtn = document.getElementById('startOverBtn');
 
-  // Add this function at the beginning of the file
-  function checkDownloadStatus() {
-    chrome.storage.local.get(['isDownloading', 'downloadComplete'], function(data) {
-      if (data.isDownloading) {
-        showProgressBar();
-        downloadButton.style.display = 'none';
-      } else if (data.downloadComplete) {
-        hideProgressBar();
-        updateStatus('Download complete!');
-        downloadButton.style.display = 'none';
+  function showSuccessScreen() {
+    mainContent.classList.add('hidden');
+    successScreen.classList.remove('hidden');
+    startOverBtn.classList.remove('hidden');
+  }
+
+  function showMainContent() {
+    mainContent.classList.remove('hidden');
+    successScreen.classList.add('hidden');
+    startOverBtn.classList.add('hidden');
+  }
+
+  function resetState() {
+    chrome.storage.local.clear(function() {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.error('Error clearing storage:', error);
       } else {
+        console.log('Storage cleared successfully');
+        chrome.runtime.sendMessage({ action: 'resetState' });
+        showMainContent();
+        resetButtonState();
         hideProgressBar();
-        downloadButton.style.display = 'block';
         updateStatus('');
+        checkUrl(); // Re-check the URL to update button state
       }
     });
   }
+
+  startOverBtn.addEventListener('click', resetState);
+
+  // Check the download state when popup opens
+  chrome.storage.local.get(['isDownloading', 'downloadProgress', 'downloadComplete'], function(data) {
+    if (data.downloadComplete) {
+      showSuccessScreen();
+    } else if (data.isDownloading) {
+      updateUIState(true, data.downloadProgress || 0);
+    } else {
+      showMainContent();
+    }
+  });
 
   // Function to reset the button state
   function resetButtonState() {
@@ -157,18 +184,6 @@ document.addEventListener('DOMContentLoaded', function () {
     updateStatus('');
   }
 
-  // Modify the DOMContentLoaded event listener
-  document.addEventListener('DOMContentLoaded', function () {
-    // ... (rest of the code)
-
-    // Add this to check the download state when popup opens
-    chrome.storage.local.get(['isDownloading', 'downloadProgress'], function(data) {
-      updateUIState(data.isDownloading, data.downloadProgress || 0);
-    });
-
-    // ... (rest of the code)
-  });
-
   // Update the chrome.runtime.onMessage listener
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'updateProgress') {
@@ -179,6 +194,9 @@ document.addEventListener('DOMContentLoaded', function () {
       downloadButton.style.display = 'block';
     } else if (message.action === 'downloadComplete') {
       updateUIState(false, 100);
+      chrome.storage.local.set({ downloadComplete: true }, function() {
+        showSuccessScreen();
+      });
     } else if (message.action === 'updateDownloadState') {
       updateUIState(message.isDownloading, message.progress);
     }
@@ -252,24 +270,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function initiateDownload(blob, filename) {
     return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(blob);
-      console.log('Initiating download with URL:', url);
-      chrome.downloads.download({
-        url: url,
-        filename: filename,
-        saveAs: true
-      }, (downloadId) => {
-        if (chrome.runtime.lastError) {
-          console.error('Download failed:', chrome.runtime.lastError);
-          updateStatus(`Error: ${chrome.runtime.lastError.message}`);
-          URL.revokeObjectURL(url);
-          reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          console.log('Download initiated with ID:', downloadId);
-          URL.revokeObjectURL(url);
-          resolve(downloadId);
-        }
-      });
+      const reader = new FileReader();
+      reader.onload = function() {
+        const dataUrl = reader.result;
+        chrome.downloads.download({
+          url: dataUrl,
+          filename: filename,
+          saveAs: true
+        }, (downloadId) => {
+          if (chrome.runtime.lastError) {
+            console.error('Download failed:', chrome.runtime.lastError);
+            chrome.runtime.sendMessage({ action: 'downloadError', error: chrome.runtime.lastError.message });
+            chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            console.log('Download initiated with ID:', downloadId);
+            chrome.runtime.sendMessage({ action: 'downloadComplete' });
+            chrome.storage.local.set({ isDownloading: false, downloadComplete: true });
+            resolve(downloadId);
+          }
+        });
+      };
+      reader.onerror = function(error) {
+        console.error('FileReader error:', error);
+        chrome.runtime.sendMessage({ action: 'downloadError', error: 'Failed to process audio data' });
+        chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
+        reject(error);
+      };
+      reader.readAsDataURL(blob);
     });
   }
 
