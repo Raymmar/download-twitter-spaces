@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', function () {
         hideProgressBar();
         updateStatus('');
         checkUrl(); // Re-check the URL to update button state
+      
+        // Send message to content script to reload the page
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+          chrome.tabs.sendMessage(tabs[0].id, {action: "reloadPage"});
+        });
       }
     });
   }

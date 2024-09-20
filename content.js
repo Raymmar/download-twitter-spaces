@@ -48,3 +48,12 @@ const observer = new PerformanceObserver((list) => {
 
 // Start observing performance entries
 observer.observe({ entryTypes: ["resource"] });
+
+// Listen for messages from the popup
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    if (request.action === "reloadPage") {
+      window.location.reload();
+    }
+  }
+);
