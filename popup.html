@@ -25,11 +25,29 @@
   </style>
 </head>
 <body class="bg-gray-900 text-white p-5">
-  <h1 class="text-2xl font-bold text-center mb-6">Download Space Audio</h1>
-  <button id="downloadBtn" class="w-full bg-purple-600 text-white py-2 rounded mb-4 disabled:bg-gray-600 disabled:cursor-not-allowed">Play recording to download</button>
-  <progress id="progressBar" max="100" value="0"></progress>
-  <div id="spinner" class="hidden w-10 h-10 border-4 border-solid rounded-full animate-spin mx-auto spinner"></div>
-  <div id="status" class="text-center text-sm text-gray-300 mt-2"></div>
+  <div id="mainContent">
+    <h1 class="text-2xl font-bold text-center mb-6">Download Space Audio</h1>
+    <button id="downloadBtn" class="w-full bg-purple-600 text-white py-2 rounded mb-4 disabled:bg-gray-600 disabled:cursor-not-allowed">Play recording to download</button>
+    <progress id="progressBar" max="100" value="0"></progress>
+    <div id="spinner" class="hidden w-10 h-10 border-4 border-solid rounded-full animate-spin mx-auto spinner"></div>
+    <div id="status" class="text-center text-sm text-gray-300 mt-2"></div>
+  </div>
+  <div id="successScreen" class="hidden">
+    <h1 class="text-2xl font-bold text-center mb-6">Success!</h1>
+    <p class="text-center text-sm text-gray-300 mb-4">Your download is complete.</p>
+    <p class="text-center text-sm text-gray-300 mb-4">If you're satisfied, please consider leaving a review:</p>
+    <a href="https://chromewebstore.google.com/detail/download-twitter-spaces/hjgpigfbmdlajibmebhndhjiiohodgfi?hl=en-US" target="_blank" rel="noopener noreferrer" class="block w-full bg-purple-600 text-white py-2 rounded mb-4 text-center">Leave a Review</a>
+    <p class="text-center text-sm text-gray-300 mb-2">Found a bug or have feedback?</p>
+    <a href="mailto:support@raymmar.com" class="block w-full bg-gray-600 text-white py-2 rounded mb-4 text-center">Contact Support</a>
+  </div>
+  <button id="startOverBtn" class="absolute top-2 right-2 text-gray-400 hover:text-white">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  </button>
+  <div class="text-center text-xs text-gray-500 mt-4">
+    <a href="https://atmospr.com" target="_blank" rel="noopener noreferrer">Powered by Atmos</a>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
