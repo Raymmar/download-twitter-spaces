@@ -9,13 +9,13 @@ document.addEventListener('DOMContentLoaded', function () {
   function showSuccessScreen() {
     mainContent.classList.add('hidden');
     successScreen.classList.remove('hidden');
-    startOverBtn.classList.remove('hidden');
+    startOverBtn.classList.remove('hidden'); // Show the start over button
   }
 
   function showMainContent() {
     mainContent.classList.remove('hidden');
     successScreen.classList.add('hidden');
-    startOverBtn.classList.add('hidden');
+    startOverBtn.classList.add('hidden'); // Hide the start over button
   }
 
   function resetState() {
@@ -26,15 +26,19 @@ document.addEventListener('DOMContentLoaded', function () {
       } else {
         console.log('Storage cleared successfully');
         chrome.runtime.sendMessage({ action: 'resetState' });
-        showMainContent();
+        showMainContent(); // This will hide the start over button
         resetButtonState();
         hideProgressBar();
         updateStatus('');
         checkUrl(); // Re-check the URL to update button state
       
-        // Send message to content script to reload the page
+        // Prompt user before reloading the page
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-          chrome.tabs.sendMessage(tabs[0].id, {action: "reloadPage"});
+          chrome.tabs.sendMessage(tabs[0].id, {action: "confirmReload"}, function(response) {
+            if (response && response.confirmed) {
+              chrome.tabs.sendMessage(tabs[0].id, {action: "reloadPage"});
+            }
+          });
         });
       }
     });
@@ -170,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
       showProgressBar();
       updateProgressBar(progress);
       downloadButton.style.display = 'none';
+      startOverBtn.classList.add('hidden'); // Hide the start over button during download
       if (progress === 100) {
         updateStatus('Download complete! Preparing File...');
       } else {
@@ -179,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
       hideProgressBar();
       downloadButton.style.display = 'block';
       updateStatus('');
+      // Don't show the start over button here
     }
   }
 
@@ -191,38 +197,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Update the chrome.runtime.onMessage listener
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'updateProgress') {
-      updateUIState(true, message.progress);
-    } else if (message.action === 'downloadError') {
-      updateStatus(`Error: ${message.error}`);
-      hideProgressBar();
-      downloadButton.style.display = 'block';
-    } else if (message.action === 'downloadComplete') {
-      updateUIState(false, 100);
-      chrome.storage.local.set({ downloadComplete: true }, function() {
-        showSuccessScreen();
-      });
-    } else if (message.action === 'updateDownloadState') {
+    console.log('Popup received message:', message);
+    if (message.action === 'updateDownloadState') {
       updateUIState(message.isDownloading, message.progress);
+    } else if (message.action === 'downloadComplete') {
+      updateStatus('Download complete!');
+      updateUIState(false, 100);
+    } else if (message.action === 'downloadError') {
+      console.error('Download error:', message.error);
+      let errorMessage = 'An error occurred during download. ';
+      if (message.error.includes('403')) {
+        errorMessage += 'Access denied. The Twitter Space might be private or no longer available.';
+      } else if (message.error.includes('404')) {
+        errorMessage += 'The audio file was not found. The Twitter Space might have been deleted.';
+      } else {
+        errorMessage += message.error;
+      }
+      updateStatus(errorMessage);
+      updateUIState(false, 0);
     }
   });
 
   // Modify the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
+    console.log('Download button clicked');
     updateUIState(true, 0);
 
     if (!(await checkPermissions())) {
+      console.log('Permissions check failed');
       updateUIState(false, 0);
       return;
     }
 
     try {
       const { playlistUrl, spaceName = 'twitter_space' } = await chrome.storage.local.get(['playlistUrl', 'spaceName']);
+      console.log('Retrieved from storage:', { playlistUrl, spaceName });
 
       if (!playlistUrl) {
         throw new Error('No M3U8 URL found in storage.');
       }
 
+      console.log('Sending startDownload message to background script');
       chrome.runtime.sendMessage({ 
         action: 'startDownload', 
         playlistUrl, 
