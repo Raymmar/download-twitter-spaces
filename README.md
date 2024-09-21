@@ -1,15 +1,16 @@
-# Download Twitter Spaces audio as an mp3 for free with one click
+# Download Twitter Spaces for free with one click
+Now supports video spaces!!
 
 By [Raymmar.com](https://raymmar.com/) & [Atmos](https://atmospr.com/)
 
 - Install the extension on [Chrome](https://chromewebstore.google.com/detail/download-twitter-spaces/hjgpigfbmdlajibmebhndhjiiohodgfi?authuser=0&hl=en)
 
-This extension allows you to download audio from x.com Spaces (formerly Twitter) for free,with one click.
+This extension allows you to download audio and video from x.com Spaces (formerly Twitter) for free,with one click.
 
 + Install the extension
 + Open a twitter/x.com URL with a space recording
 + Start recording playback
-+ Activate extension and click download mp3
++ Activate extension and click download
 
 ## How to install this extension locally
 
