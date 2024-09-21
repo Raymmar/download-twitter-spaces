@@ -129,6 +129,7 @@ async function initiateDownload(blob, filename) {
   const reader = new FileReader();
   reader.onload = function() {
     const dataUrl = reader.result;
+    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: true, progress: 100, status: 'Preparing download...' });
     chrome.downloads.download({
       url: dataUrl,
       filename: filename,

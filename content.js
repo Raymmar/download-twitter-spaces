@@ -57,14 +57,3 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
-
-// Add this to your existing content script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "confirmReload") {
-    const confirmed = confirm("The page needs to be reloaded. Any unsaved changes may be lost. Do you want to continue?");
-    sendResponse({confirmed: confirmed});
-  } else if (message.action === "reloadPage") {
-    location.reload();
-  }
-  return true; // Indicates that the response will be sent asynchronously
-});
