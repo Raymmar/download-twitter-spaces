@@ -110,7 +110,7 @@ function initiateDownload(blob, filename) {
           chrome.runtime.sendMessage({ action: 'downloadError', error: chrome.runtime.lastError.message });
         } else {
           console.log(`Download started with ID: ${downloadId}`);
-          chrome.runtime.sendMessage({ action: 'downloadComplete' });
+          chrome.runtime.sendMessage({ action: 'preparingDownload' });
         }
       });
     };
