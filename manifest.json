@@ -37,6 +37,7 @@
     "host_permissions": [
       "*://*.twitter.com/*",
       "*://*.x.com/*",
-      "*://*.pscp.tv/*"
+      "*://*.pscp.tv/*",
+      "*://*.video.pscp.tv/*" 
     ]
   }
