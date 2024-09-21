@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function showSuccessScreen() {
     mainContent.classList.add('hidden');
     successScreen.classList.remove('hidden');
-    startOverBtn.classList.remove('hidden'); // Show the start over button
+    startOverBtn.classList.remove('hidden');
   }
 
   function showMainContent() {
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Function to activate the button
   function activateButton() {
     downloadButton.disabled = false;
-    downloadButton.textContent = 'Download MP3';
+    downloadButton.textContent = 'Download Media';
     downloadButton.style.backgroundColor = '#9c64fb'; // Twitter Spaces purple
     downloadButton.style.cursor = 'pointer';
     console.log('Button activated');
@@ -115,11 +115,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       } else {
         // Disable the button if the URL is not from Twitter or X.com
-        downloadButton.disabled = true;
-        downloadButton.textContent = 'Not available on this URL';
-        downloadButton.style.backgroundColor = '#4b4b4c'; // Dark grey for disabled state
-        downloadButton.style.cursor = 'not-allowed';
-        console.log('Button disabled for non-Twitter URL');
+        resetButtonState();
+        updateStatus('Not available on this URL');
       }
     });
   }
@@ -157,11 +154,10 @@ document.addEventListener('DOMContentLoaded', function () {
       startOverBtn.classList.add('hidden');
       updateStatus(status || `Downloading: ${progress}%`);
     } else if (progress === 100) {
-      showProgressBar();
+      showSuccessScreen();
       updateProgressBar(progress);
-      downloadButton.style.display = 'none';
-      startOverBtn.classList.remove('hidden');
       updateStatus(status || 'Download complete!');
+      chrome.storage.local.set({ downloadComplete: true });
     } else {
       hideProgressBar();
       downloadButton.style.display = 'block';
@@ -184,6 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } else if (message.action === 'downloadComplete') {
       updateUIState(false, 100, 'Download complete!');
       showSuccessScreen();
+      chrome.storage.local.set({ downloadComplete: true });
     } else if (message.action === 'downloadError') {
       console.error('Download error:', message.error);
       let errorMessage = 'An error occurred during download. ';
@@ -237,4 +234,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     return status;
   }
+
+  // Check URL when popup opens
+  checkUrl();
+
+  // Listen for tab updates
+  chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+    if (changeInfo.url) {
+      checkUrl();
+    }
+  });
 });
