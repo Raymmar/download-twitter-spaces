@@ -26,19 +26,14 @@ document.addEventListener('DOMContentLoaded', function () {
       } else {
         console.log('Storage cleared successfully');
         chrome.runtime.sendMessage({ action: 'resetState' });
-        showMainContent(); // This will hide the start over button
+        showMainContent();
         resetButtonState();
         hideProgressBar();
         updateStatus('');
-        checkUrl(); // Re-check the URL to update button state
-      
-        // Prompt user before reloading the page
+        checkUrl();
+        
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-          chrome.tabs.sendMessage(tabs[0].id, {action: "confirmReload"}, function(response) {
-            if (response && response.confirmed) {
-              chrome.tabs.sendMessage(tabs[0].id, {action: "reloadPage"});
-            }
-          });
+          chrome.tabs.reload(tabs[0].id);
         });
       }
     });
@@ -169,22 +164,23 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Modify the updateUIState function
-  function updateUIState(isDownloading, progress) {
-    if (isDownloading || progress === 100) {
+  function updateUIState(isDownloading, progress, status) {
+    if (isDownloading) {
       showProgressBar();
       updateProgressBar(progress);
       downloadButton.style.display = 'none';
-      startOverBtn.classList.add('hidden'); // Hide the start over button during download
-      if (progress === 100) {
-        updateStatus('Download complete! Preparing File...');
-      } else {
-        updateStatus(`Downloading: ${progress}%`);
-      }
+      startOverBtn.classList.add('hidden');
+      updateStatus(status || `Downloading: ${progress}%`);
+    } else if (progress === 100) {
+      showProgressBar();
+      updateProgressBar(progress);
+      downloadButton.style.display = 'none';
+      startOverBtn.classList.remove('hidden');
+      updateStatus(status || 'Download complete!');
     } else {
       hideProgressBar();
       downloadButton.style.display = 'block';
-      updateStatus('');
-      // Don't show the start over button here
+      updateStatus(status || '');
     }
   }
 
@@ -199,10 +195,10 @@ document.addEventListener('DOMContentLoaded', function () {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Popup received message:', message);
     if (message.action === 'updateDownloadState') {
-      updateUIState(message.isDownloading, message.progress);
+      updateUIState(message.isDownloading, message.progress, message.status);
     } else if (message.action === 'downloadComplete') {
-      updateStatus('Download complete!');
-      updateUIState(false, 100);
+      updateUIState(false, 100, 'Download complete!');
+      showSuccessScreen();
     } else if (message.action === 'downloadError') {
       console.error('Download error:', message.error);
       let errorMessage = 'An error occurred during download. ';
@@ -213,8 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
       } else {
         errorMessage += message.error;
       }
-      updateStatus(errorMessage);
-      updateUIState(false, 0);
+      updateUIState(false, 0, errorMessage);
     }
   });
 
