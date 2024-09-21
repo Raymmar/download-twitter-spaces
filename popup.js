@@ -153,10 +153,16 @@ document.addEventListener('DOMContentLoaded', function () {
       downloadButton.style.display = 'none';
       startOverBtn.classList.add('hidden');
       updateStatus(status || `Downloading: ${progress}%`);
+    } else if (status === 'Preparing file...') {
+      showProgressBar();
+      updateProgressBar(0);
+      downloadButton.style.display = 'none';
+      startOverBtn.classList.add('hidden');
+      updateStatus(status);
     } else if (progress === 100) {
       showSuccessScreen();
       updateProgressBar(progress);
-      updateStatus(status || 'Download complete!');
+      updateStatus('Your download is complete');
       chrome.storage.local.set({ downloadComplete: true });
     } else {
       hideProgressBar();
@@ -177,10 +183,10 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('Popup received message:', message);
     if (message.action === 'updateDownloadState') {
       updateUIState(message.isDownloading, message.progress, message.status);
-    } else if (message.action === 'downloadComplete') {
-      updateUIState(false, 100, 'Download complete!');
+    } else if (message.action === 'preparingDownload') {
+      updateUIState(false, 100, 'Preparing file...');
       showSuccessScreen();
-      chrome.storage.local.set({ downloadComplete: true });
+      chrome.storage.local.set({ downloadComplete: true, downloadStatus: 'Preparing file...' });
     } else if (message.action === 'downloadError') {
       console.error('Download error:', message.error);
       let errorMessage = 'An error occurred during download. ';
@@ -194,6 +200,19 @@ document.addEventListener('DOMContentLoaded', function () {
       updateUIState(false, 0, errorMessage);
     }
   });
+
+  // Add this function to check the download status when the popup opens
+  function checkDownloadStatus() {
+    chrome.storage.local.get(['downloadComplete', 'downloadStatus'], function(data) {
+      if (data.downloadComplete) {
+        updateUIState(false, 100, data.downloadStatus === 'Preparing file...' ? 'Your download is complete' : data.downloadStatus);
+        showSuccessScreen();
+      }
+    });
+  }
+
+  // Call this function when the popup opens
+  checkDownloadStatus();
 
   // Modify the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
