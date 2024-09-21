@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
       updateStatus(status || `Downloading: ${progress}%`);
     } else if (status === 'Preparing file...') {
       showProgressBar();
-      updateProgressBar(0);
+      updateProgressBar(100);
       downloadButton.style.display = 'none';
       startOverBtn.classList.add('hidden');
       updateStatus(status);
