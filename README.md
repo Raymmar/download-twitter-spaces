@@ -51,7 +51,7 @@ You can replace the default file name with whatever you want before saving the f
 
 ## How it works
 
-Twitter obfuscates your audio recordings and then chops them up into 3 second .acc, .ts or .mp4 files which they then combine at runtime to recreate the playback. This makes it difficult to download your audio as you cannot just inspect the page and look for an .mp3 or .mp4 file to download. 
+Twitter obfuscates your audio / video recordings and then chops them up into short .acc, .ts or .mp4 files which they then combine at runtime to recreate the playback. This makes it difficult to download your audio as you cannot just inspect the page and look for an .mp3 or .mp4 file to download. 
 
 This extension works by monitoring network activity in the browser when activated, and searching for a m3u8 URL which is a playlist that tells the server which files to play and in what order. 
 
@@ -67,11 +67,11 @@ The extension does need certain permissions in the browser to work properly, but
 
 ## Roadmap
 
-- Right now the extension only downloads audio and video files from Twitter spaces. However it could easily be modified to grab audio from other platforms
-- I am thinking about adding the ability to download regular videos from twitter as well as YouTube
+- Right now the extension only downloads audio + video files from Twitter spaces. However it could easily be modified to grab media from other platforms.
+- I am thinking about adding the ability to download videos from twitter as well as YouTube.
 - I am also thinking about adding the ability to download YouTube thumbnails with the extension as I often find myself using external services for this as well.
-- Maybe this thing could connect to an LLM and spit out a transcript of the twitter space as well?
-- I have many other ideas, but who knows what else I will do with it.
+- Maybe this thing could connect to an LLM and spit out a transcript of the media as well?
+- I have many other ideas, but who knows what I will add.
 
-You are welcome to fork the repo and build your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out on [twitter](https://x.com/@raymmar_https) or leave a review on the chrome web store.
+You are welcome to fork the repo and use my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out or leave a comment on GitHub.
 
