@@ -46,5 +46,14 @@ const observer = new PerformanceObserver((list) => {
   });
 });
 
-// Start observing performance entries
+// Start listening for m3u8 playlist
 observer.observe({ entryTypes: ["resource"] });
+
+// Listen for messages from the popup to reload the page
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    if (request.action === "reloadPage") {
+      window.location.reload();
+    }
+  }
+);

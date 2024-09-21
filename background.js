@@ -28,6 +28,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'startDownload') {
     startDownload(message.playlistUrl, message.spaceName);
   }
+  if (message.action === 'resetState') {
+    chrome.storage.local.clear(() => {
+      console.log('Background: Storage cleared');
+      // Reset any other background state variables if necessary
+    });
+  }
 });
 
 async function startDownload(playlistUrl, spaceName) {
@@ -123,6 +129,7 @@ async function initiateDownload(blob, filename) {
   const reader = new FileReader();
   reader.onload = function() {
     const dataUrl = reader.result;
+    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: true, progress: 100, status: 'Preparing download...' });
     chrome.downloads.download({
       url: dataUrl,
       filename: filename,
