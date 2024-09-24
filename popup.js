@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function showSuccessScreen() {
     mainContent.classList.add('hidden');
     successScreen.classList.remove('hidden');
-    startOverBtn.classList.remove('hidden'); // Show the start over button
+    startOverBtn.classList.remove('hidden');
   }
 
   function showMainContent() {
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (data.downloadComplete) {
       showSuccessScreen();
     } else if (data.isDownloading) {
-      updateUIState(true, data.downloadProgress || 0);
+      updateUIState(true, data.downloadProgress || 0, 'Preparing download...');
     } else {
       showMainContent();
     }
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Function to activate the button
   function activateButton() {
     downloadButton.disabled = false;
-    downloadButton.textContent = 'Download MP3';
+    downloadButton.textContent = 'Download Media';
     downloadButton.style.backgroundColor = '#9c64fb'; // Twitter Spaces purple
     downloadButton.style.cursor = 'pointer';
     console.log('Button activated');
@@ -86,6 +86,11 @@ document.addEventListener('DOMContentLoaded', function () {
   function updateProgressBar(percentage) {
     progressBar.value = percentage;
     progressBar.style.backgroundColor = percentage < 100 ? '#4b4b4c' : '#9c64fb'; // Dark grey for in-progress, purple for complete
+  }
+
+  // Function to update the status message
+  function updateStatus(message) {
+    statusElement.textContent = message;
   }
 
   // Function to check if the current tab's URL is from Twitter or X.com
@@ -110,11 +115,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       } else {
         // Disable the button if the URL is not from Twitter or X.com
-        downloadButton.disabled = true;
-        downloadButton.textContent = 'Not available on this URL';
-        downloadButton.style.backgroundColor = '#4b4b4c'; // Dark grey for disabled state
-        downloadButton.style.cursor = 'not-allowed';
-        console.log('Button disabled for non-Twitter URL');
+        resetButtonState();
+        updateStatus('Not available on this URL');
       }
     });
   }
@@ -143,26 +145,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // Check the URL and M3U8 URL when the popup is loaded
-  checkUrl();
-
-  async function checkPermissions() {
-    return new Promise((resolve) => {
-      chrome.permissions.contains({
-        permissions: ['downloads']
-      }, (result) => {
-        if (result) {
-          console.log('Downloads permission is granted');
-          resolve(true);
-        } else {
-          console.error('Downloads permission is not granted');
-          updateStatus('Error: Downloads permission is not granted');
-          resolve(false);
-        }
-      });
-    });
-  }
-
   // Modify the updateUIState function
   function updateUIState(isDownloading, progress, status) {
     if (isDownloading) {
@@ -171,12 +153,17 @@ document.addEventListener('DOMContentLoaded', function () {
       downloadButton.style.display = 'none';
       startOverBtn.classList.add('hidden');
       updateStatus(status || `Downloading: ${progress}%`);
-    } else if (progress === 100) {
+    } else if (status === 'Preparing file...') {
       showProgressBar();
-      updateProgressBar(progress);
+      updateProgressBar(100);
       downloadButton.style.display = 'none';
-      startOverBtn.classList.remove('hidden');
-      updateStatus(status || 'Download complete!');
+      startOverBtn.classList.add('hidden');
+      updateStatus(status);
+    } else if (progress === 100) {
+      showSuccessScreen();
+      updateProgressBar(progress);
+      updateStatus('Your download is complete');
+      chrome.storage.local.set({ downloadComplete: true });
     } else {
       hideProgressBar();
       downloadButton.style.display = 'block';
@@ -196,9 +183,10 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('Popup received message:', message);
     if (message.action === 'updateDownloadState') {
       updateUIState(message.isDownloading, message.progress, message.status);
-    } else if (message.action === 'downloadComplete') {
-      updateUIState(false, 100, 'Download complete!');
+    } else if (message.action === 'preparingDownload') {
+      updateUIState(false, 100, 'Preparing file...');
       showSuccessScreen();
+      chrome.storage.local.set({ downloadComplete: true, downloadStatus: 'Preparing file...' });
     } else if (message.action === 'downloadError') {
       console.error('Download error:', message.error);
       let errorMessage = 'An error occurred during download. ';
@@ -213,10 +201,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // Add this function to check the download status when the popup opens
+  function checkDownloadStatus() {
+    chrome.storage.local.get(['downloadComplete', 'downloadStatus'], function(data) {
+      if (data.downloadComplete) {
+        updateUIState(false, 100, data.downloadStatus === 'Preparing file...' ? 'Your download is complete' : data.downloadStatus);
+        showSuccessScreen();
+      }
+    });
+  }
+
+  // Call this function when the popup opens
+  checkDownloadStatus();
+
   // Modify the downloadButton click event listener
   downloadButton.addEventListener('click', async () => {
     console.log('Download button clicked');
-    updateUIState(true, 0);
+    updateUIState(true, 0, 'Preparing download...');
 
     if (!(await checkPermissions())) {
       console.log('Permissions check failed');
@@ -244,101 +245,22 @@ document.addEventListener('DOMContentLoaded', function () {
       updateUIState(false, 0);
     }
   });
-
-  async function downloadAndMergeChunks(chunkUrls) {
-    const allChunks = [];
-    const totalChunks = chunkUrls.length;
-
-    for (let i = 0; i < totalChunks; i++) {
-      updateStatus(`Downloading chunk ${i + 1} of ${totalChunks}...`);
-      try {
-        const response = await fetchWithRetry(chunkUrls[i]);
-        const arrayBuffer = await response.arrayBuffer();
-        allChunks.push(arrayBuffer);
-        updateProgressBar(Math.round(((i + 1) / totalChunks) * 100));
-      } catch (error) {
-        console.error(`Failed to download chunk ${i + 1}:`, error);
-        // Continue with the next chunk
-      }
-    }
-
-    if (allChunks.length === 0) {
-      throw new Error('Failed to download any audio chunks.');
-    }
-
-    updateStatus('Merging audio chunks...');
-    return new Blob(allChunks, { type: 'audio/mpeg' });
-  }
-
-  async function fetchWithRetry(url, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response;
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-      }
-    }
-  }
-
-  async function initiateDownload(blob, filename) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = function() {
-        const dataUrl = reader.result;
-        chrome.downloads.download({
-          url: dataUrl,
-          filename: filename,
-          saveAs: true
-        }, (downloadId) => {
-          if (chrome.runtime.lastError) {
-            console.error('Download failed:', chrome.runtime.lastError);
-            chrome.runtime.sendMessage({ action: 'downloadError', error: chrome.runtime.lastError.message });
-            chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            console.log('Download initiated with ID:', downloadId);
-            chrome.runtime.sendMessage({ action: 'downloadComplete' });
-            chrome.storage.local.set({ isDownloading: false, downloadComplete: true });
-            resolve(downloadId);
-          }
-        });
-      };
-      reader.onerror = function(error) {
-        console.error('FileReader error:', error);
-        chrome.runtime.sendMessage({ action: 'downloadError', error: 'Failed to process audio data' });
-        chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
-        reject(error);
-      };
-      reader.readAsDataURL(blob);
+  
+  // Function to check permissions
+  async function checkPermissions() {
+    const status = await chrome.permissions.contains({
+      permissions: ['downloads']
     });
+    return status;
   }
 
-  function updateStatus(message) {
-    if (statusElement) {
-      statusElement.textContent = message;
-    }
-    console.log(message);
-  }
+  // Check URL when popup opens
+  checkUrl();
 
-  function sanitizeFilename(filename) {
-    // Remove any non-alphanumeric characters except spaces, dashes, and underscores
-    let sanitized = filename.replace(/[^a-z0-9\s-_]/gi, '')
-      // Replace spaces with underscores
-      .replace(/\s+/g, '_')
-      // Remove any leading or trailing underscores or dashes
-      .replace(/^[-_]+|[-_]+$/g, '')
-      // Limit to 20 characters
-      .slice(0, 20);
-  
-    // If the sanitized string is empty, use a default name
-    if (sanitized.length === 0) {
-      sanitized = 'twitter_space_audio';
+  // Listen for tab updates
+  chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+    if (changeInfo.url) {
+      checkUrl();
     }
-  
-    // Append .mp3 extension
-    return sanitized + '.mp3';
-  }
+  });
 });

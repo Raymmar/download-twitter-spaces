@@ -1,15 +1,18 @@
-# Download Twitter Spaces audio as an mp3 for free with one click
+# Download Twitter Spaces for free with one click
+With support for video spaces! 
 
 By [Raymmar.com](https://raymmar.com/) & [Atmos](https://atmospr.com/)
 
 - Install the extension on [Chrome](https://chromewebstore.google.com/detail/download-twitter-spaces/hjgpigfbmdlajibmebhndhjiiohodgfi?authuser=0&hl=en)
 
-This extension allows you to download audio from x.com Spaces (formerly Twitter) for free,with one click.
+This extension allows you to download audio and video from x.com Spaces (formerly Twitter) for free,with one click.
+
+## How it works
 
 + Install the extension
 + Open a twitter/x.com URL with a space recording
 + Start recording playback
-+ Activate extension and click download mp3
++ Activate extension and click download
 
 ## How to install this extension locally
 
@@ -23,25 +26,24 @@ From there you should pin the extension to make sure it is easily available.
 
 ## How to use this extension
 
-Once the extension is installed, you will be able to click on the icon to activate it and use it as intended. 
-
-If you try to access Twitter Space Downloader on URL's outside of twitter you will get a warning. 
+If you try to access the extension on URL's outside of twitter you will get a warning. 
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmX4tdmbTuCb7Bp7uqNW4mAfdwt9hTaibXwBA9XWdkpftC)
 
-To activate the extension you need to be on a Twitter.com or x.com URL and click on the play button of the Twitter Space you want to download. **The extension will not detect the audio until you start playing the space.**
+To activate the extension you need to be on a Twitter.com or x.com URL and click on the play button of the Twitter Space you want to download. 
+**The extension will not work until you start playing the space.**
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmZNBvkx4ZkFm6KJdZjWV8WRMk1WXbH7uL9EUegUXH3qz5)
 
-Once you have started the audio playback on twitter, you will have the option to click the download MP3 button in the extension. 
+Once you have started the space playback, you will have the option to click the download media button. 
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmRFS4LnjtdwL3BcqVmYkziuNfoxYMXULTgFmxMyyeyjpY)
 
-From there it will process the file and deliver your mp3 download which you can save directly to your computer. 
+From there it will process the file and deliver your download which can be saved directly to your computer. 
 
 ## Saving a file
 
-After the file has been processed, it will open a save dialogue box on your computer prompting you to save the file. 
+After the file has been processed, it will open a save dialogue. 
 
 ![](https://gateway.ipfs.dxos.network/ipfs/QmQg9LtcGLgYphtxCzrYrhVWnyySPWQoNDPTEDD4fwK5nQ)
 
@@ -49,11 +51,11 @@ You can replace the default file name with whatever you want before saving the f
 
 ## How it works
 
-Twitter obfuscates your audio recordings and then chops them up into 3 second .acc files which they then combine at runtime to recreate the recording. This makes it difficult to download your audio as you cannot just inspect the page and look for an mp3 file to download. 
+Twitter obfuscates your audio / video recordings and then chops them up into short .acc, .ts or .mp4 files which they then combine at runtime to recreate the playback. This makes it difficult to download your audio as you cannot just inspect the page and look for an .mp3 or .mp4 file to download. 
 
-This extension works by monitoring network activity in the browser when activated, and searching for a M3U8 URL which is a playlist that tells the server which .aac files to send back and in what order. 
+This extension works by monitoring network activity in the browser when activated, and searching for a m3u8 URL which is a playlist that tells the server which files to play and in what order. 
 
-Once the extension finds that URL, it assembles all of the .aac files, and combines them into a final audio file that you can download as an mp3. 
+Once the extension finds the m3u8 URL, it assembles all of the files and combines them for download.
 
 ## Privacy
 
@@ -65,11 +67,11 @@ The extension does need certain permissions in the browser to work properly, but
 
 ## Roadmap
 
-- Right now the extension only downloads audio files from Twitter spaces. However it could easily be modified to grab audio from other platforms
-- I am thinking about adding the ability to download videos from twitter as well as YouTube
+- Right now the extension only downloads audio + video files from Twitter spaces. However it could easily be modified to grab media from other platforms.
+- I am thinking about adding the ability to download videos from twitter as well as YouTube.
 - I am also thinking about adding the ability to download YouTube thumbnails with the extension as I often find myself using external services for this as well.
-- Maybe this thing could connect to an LLM and spit out a transcript of the twitter space as well?
-- I have many other ideas, but who knows what else I will do with it.
+- Maybe this thing could connect to an LLM and spit out a transcript of the media as well?
+- I have many other ideas, but who knows what I will add.
 
-You are welcome to fork the repo and build your own tool with my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out on [twitter](https://x.com/@raymmar_https) or leave a review on the chrome web store.
+You are welcome to fork the repo and use my code as your starting point. If you are interested in helping me improve the extension or have ideas for new features, feel free to reach out or leave a comment on GitHub.
 
