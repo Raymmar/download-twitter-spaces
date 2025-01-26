@@ -34,7 +34,7 @@ You can replace this generated file name with whatever you want before saving th
 
 PRIVACY
 
-We do not track or sell your data. There is no backend service on this application at the moment (although that might change in the future). You can always run the code locally if you would prefer as well. 
+We do not track or sell your data. We do collect anonymous usage data to improve the extension experience.
 
 ---- View the source code and install this locally ---- 
 https://github.com/Raymmar/media-downloader
