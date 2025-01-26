@@ -1,5 +1,33 @@
+// Function to generate a UUID
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Set up the extension on installation
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
+  chrome.storage.local.get('userId', (result) => {
+    if (!result.userId) {
+      const userId = generateUUID();
+      chrome.storage.local.set({ userId: userId }, () => {
+        console.log('Generated and stored new userId:', userId);
+        // Set a cookie with the userId
+        chrome.cookies.set({
+          url: 'https://your-extension-domain.com', // Use your extension's domain
+          name: 'userId',
+          value: userId,
+          expirationDate: (new Date().getTime() / 1000) + (10 * 365 * 24 * 60 * 60) // 10 years
+        }, () => {
+          console.log('Cookie set with userId:', userId);
+        });
+      });
+    } else {
+      console.log('User ID already exists:', result.userId);
+    }
+  });
 });
 
 /**
@@ -321,4 +349,32 @@ async function fetchAndParsePlaylist(playlistUrl) {
     console.log("Extracted chunk URLs:", chunkUrls);
     return chunkUrls;
   }
+}
+
+chrome.downloads.onChanged.addListener((delta) => {
+  if (delta.state && delta.state.current === 'complete') {
+    // Fetch the stored data
+    chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl'], (data) => {
+      // Send the webhook with the stored data
+      sendToWebhook({
+        playlistUrl: data.playlistUrl,
+        spaceName: data.spaceName,
+        tweetUrl: data.tweetUrl,
+        // Add any additional data you want to send
+      });
+    });
+  }
+});
+
+function sendToWebhook(data) {
+  const webhookUrl = 'https://hook.us1.make.com/9281mbmz387evtgbo4b1b6lh56uqjefa'; // Replace with your actual webhook URL
+  fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => console.log('Webhook response status:', response.status))
+  .catch(error => console.error('Error sending to webhook:', error));
 }

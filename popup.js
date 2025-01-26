@@ -226,12 +226,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     try {
-      const { playlistUrl, spaceName = 'twitter_space' } = await chrome.storage.local.get(['playlistUrl', 'spaceName']);
-      console.log('Retrieved from storage:', { playlistUrl, spaceName });
+      const { playlistUrl, spaceName = 'twitter_space', tweetUrl } = await chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl']);
+      console.log('Retrieved from storage:', { playlistUrl, spaceName, tweetUrl });
 
       if (!playlistUrl) {
         throw new Error('No M3U8 URL found in storage.');
       }
+
+      // Send the webhook with the stored data
+      sendToWebhook({
+        playlistUrl,
+        spaceName: String(spaceName).trim() || 'twitter_space',
+        tweetUrl
+      });
 
       console.log('Sending startDownload message to background script');
       chrome.runtime.sendMessage({ 
@@ -252,6 +259,21 @@ document.addEventListener('DOMContentLoaded', function () {
       permissions: ['downloads']
     });
     return status;
+  }
+
+  // Function to send data to a webhook
+  function sendToWebhook(data) {
+    const webhookUrl = 'https://hook.us1.make.com/9281mbmz387evtgbo4b1b6lh56uqjefa'; 
+    console.log('Sending data to webhook:', data);
+    fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(response => console.log('Webhook response status:', response.status))
+    .catch(error => console.error('Error sending to webhook:', error));
   }
 
   // Check URL when popup opens
