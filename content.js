@@ -59,7 +59,7 @@ function sendToWebhook(data) {
   chrome.storage.local.get('userId', (result) => {
     const userId = result.userId || 'unknown';
     console.log('Retrieved userId:', userId);
-    const webhookUrl = 'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook'; // Replace with your actual webhook URL
+    const webhookUrl = 'https://hook.us1.make.com/sppmhrz4fxeimjc8hytgwvuuuvcx589y'; // Replace with your actual webhook URL
     const payload = {
       userId: userId,
       playlistUrl: data.playlistUrl,
@@ -137,23 +137,6 @@ const observer = new PerformanceObserver((list) => {
       // Capture the Twitter Space URL
       const tweetUrl = getTwitterSpaceUrl();
 
-      // Get user's IP and location and send data to webhook
-      getUserIP(ip => {
-        if (ip) {
-          getUserLocation(ip, locationData => {
-            const data = {
-              playlistUrl: entry.name,
-              spaceName: spaceName,
-              tweetUrl: tweetUrl,
-              location: locationData
-            };
-            sendToWebhook(data);
-          });
-        } else {
-          console.error('Failed to get user IP');
-        }
-      });
-
       // Store the URL, name, and tweet URL in chrome.storage.local
       chrome.storage.local.set({ playlistUrl: entry.name, spaceName: spaceName, tweetUrl: tweetUrl }, () => {
         console.log("Successfully stored the M3U8 URL, Twitter Space name, and tweet URL from content script:", entry.name, spaceName, tweetUrl);
@@ -167,11 +150,32 @@ const observer = new PerformanceObserver((list) => {
 // Start listening for m3u8 playlist
 observer.observe({ entryTypes: ["resource"] });
 
-// Listen for messages from the popup to reload the page
+// Listen for messages from the popup
 chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     if (request.action === "reloadPage") {
       window.location.reload();
+    }
+    // Add new listener for download action
+    if (request.action === "downloadMedia") {
+      // Get the stored data and trigger webhook
+      chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl'], (result) => {
+        getUserIP(ip => {
+          if (ip) {
+            getUserLocation(ip, locationData => {
+              const data = {
+                playlistUrl: result.playlistUrl,
+                spaceName: result.spaceName,
+                tweetUrl: result.tweetUrl,
+                location: locationData
+              };
+              sendToWebhook(data);
+            });
+          } else {
+            console.error('Failed to get user IP');
+          }
+        });
+      });
     }
   }
 );
