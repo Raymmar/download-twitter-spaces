@@ -350,31 +350,3 @@ async function fetchAndParsePlaylist(playlistUrl) {
     return chunkUrls;
   }
 }
-
-chrome.downloads.onChanged.addListener((delta) => {
-  if (delta.state && delta.state.current === 'complete') {
-    // Fetch the stored data
-    chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl'], (data) => {
-      // Send the webhook with the stored data
-      sendToWebhook({
-        playlistUrl: data.playlistUrl,
-        spaceName: data.spaceName,
-        tweetUrl: data.tweetUrl,
-        // Add any additional data you want to send
-      });
-    });
-  }
-});
-
-function sendToWebhook(data) {
-  const webhookUrl = 'https://hook.us1.make.com/9281mbmz387evtgbo4b1b6lh56uqjefa'; // Replace with your actual webhook URL
-  fetch(webhookUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(data)
-  })
-  .then(response => console.log('Webhook response status:', response.status))
-  .catch(error => console.error('Error sending to webhook:', error));
-}

@@ -219,6 +219,11 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('Download button clicked');
     updateUIState(true, 0, 'Preparing download...');
 
+    // Send message to content script to trigger webhook
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      chrome.tabs.sendMessage(tabs[0].id, {action: "downloadMedia"});
+    });
+
     if (!(await checkPermissions())) {
       console.log('Permissions check failed');
       updateUIState(false, 0);
@@ -232,13 +237,6 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!playlistUrl) {
         throw new Error('No M3U8 URL found in storage.');
       }
-
-      // Send the webhook with the stored data
-      sendToWebhook({
-        playlistUrl,
-        spaceName: String(spaceName).trim() || 'twitter_space',
-        tweetUrl
-      });
 
       console.log('Sending startDownload message to background script');
       chrome.runtime.sendMessage({ 
