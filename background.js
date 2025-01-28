@@ -68,15 +68,48 @@ chrome.webRequest.onCompleted.addListener(onRequestCompleted, {
   ]
 });
 
+// Update the tab listener to only reset on relevant domains
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const validDomains = ['twitter.com', 'x.com', 'pscp.tv'];
+  
+  if (changeInfo.status === 'complete' && tab.url && validDomains.some(d => tab.url.includes(d))) {
+    chrome.storage.local.clear(() => {
+      console.log('Resetting state for domain:', tab.url);
+      chrome.storage.local.set({ 
+        isDownloading: false,
+        downloadComplete: false,
+        mediaUrl: null,
+        mediaType: null
+      });
+      // Re-add the webRequest listener for new page load
+      chrome.webRequest.onCompleted.addListener(onRequestCompleted, {
+        urls: ["*://*.twitter.com/*", "*://*.x.com/*", "*://*.pscp.tv/*"]
+      });
+    });
+  }
+});
+
+// Modify the existing resetState handler to maintain userId
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'resetState') {
+    chrome.storage.local.get('userId', (result) => {
+      chrome.storage.local.clear(() => {
+        console.log('Background: Storage cleared except userId');
+        if (result.userId) {
+          chrome.storage.local.set({ userId: result.userId });
+        }
+        // Reset other initial states
+        chrome.storage.local.set({
+          isDownloading: false,
+          downloadComplete: false,
+          mediaUrl: null,
+          mediaType: null
+        });
+      });
+    });
+  }
   if (message.action === 'startDownload') {
     startDownload(message.mediaUrl, message.mediaType, message.mediaName);
-  }
-  if (message.action === 'resetState') {
-    chrome.storage.local.clear(() => {
-      console.log('Background: Storage cleared');
-      // Reset any other background state variables if necessary
-    });
   }
 });
 

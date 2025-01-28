@@ -59,7 +59,8 @@ function sendToWebhook(data) {
   chrome.storage.local.get('userId', (result) => {
     const userId = result.userId || 'unknown';
     console.log('Retrieved userId:', userId);
-    const webhookUrl = 'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook'; // Replace with your actual webhook URL
+    const webhookUrl = 'https://hook.us1.make.com/sppmhrz4fxeimjc8hytgwvuuuvcx589y'; // Replace with your actual webhook URL
+    // const webhookUrl = 'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook'; // Replace with your actual webhook URL
     const payload = {
       userId: userId,
       playlistUrl: data.playlistUrl,
