@@ -35,19 +35,26 @@ chrome.runtime.onInstalled.addListener(() => {
  * @param {Object} details - Details of the completed request.
  */
 function onRequestCompleted(details) {
-  // Log every network request to analyze the traffic
-  console.log("Network request completed:", details.url);
+  const mediaPatterns = {
+    m3u8: /\.m3u8/,
+    mp4: /\.mp4(\?|$)/,
+    ts: /\.ts(\?|$)/,
+    m4s: /\.m4s(\?|$)/,
+    mpd: /\.mpd(\?|$)/ // For DASH manifests
+  };
 
-  // Check if the request URL contains ".m3u8" (even with query parameters like ?type=replay)
-  if (details.url.includes(".m3u8")) {
-    console.log("Captured M3U8 URL:", details.url);
+  // Check for any media pattern match
+  const detectedType = Object.entries(mediaPatterns).find(([_, regex]) => 
+    details.url.match(regex)
+  )?.[0];
 
-    // Store the captured M3U8 URL in chrome.storage.local
-    chrome.storage.local.set({ playlistUrl: details.url }, () => {
-      console.log("Successfully stored the captured M3U8 URL:", details.url);
-      // Remove the listener after capturing the URL
-      chrome.webRequest.onCompleted.removeListener(onRequestCompleted);
+  if (detectedType) {
+    console.log(`Detected ${detectedType.toUpperCase()} URL:`, details.url);
+    chrome.storage.local.set({ 
+      mediaUrl: details.url,
+      mediaType: detectedType 
     });
+    chrome.webRequest.onCompleted.removeListener(onRequestCompleted);
   }
 }
 
@@ -63,7 +70,7 @@ chrome.webRequest.onCompleted.addListener(onRequestCompleted, {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'startDownload') {
-    startDownload(message.playlistUrl, message.spaceName);
+    startDownload(message.mediaUrl, message.mediaType, message.mediaName);
   }
   if (message.action === 'resetState') {
     chrome.storage.local.clear(() => {
@@ -75,35 +82,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 /**
  * Initiates the download process.
- * @param {string} playlistUrl - The URL of the M3U8 playlist.
- * @param {string} spaceName - The name of the Twitter Space.
+ * @param {string} mediaUrl - The URL of the media.
+ * @param {string} mediaType - The type of the media.
+ * @param {string} mediaName - The name of the media.
  */
-async function startDownload(playlistUrl, spaceName) {
+async function startDownload(mediaUrl, mediaType, mediaName) {
   try {
     chrome.storage.local.set({ isDownloading: true, downloadProgress: 0 });
-    chrome.runtime.sendMessage({ action: 'updateDownloadState', isDownloading: true, progress: 0 });
-
-    const chunkUrls = await fetchAndParsePlaylist(playlistUrl);
-    console.log("Chunk URLs:", chunkUrls);
-    const mediaBlob = await downloadAndMergeChunks(chunkUrls);
-    if (mediaBlob.size === 0) {
-      throw new Error('The merged Blob is empty.');
+    
+    console.log(`Starting ${mediaType} download from:`, mediaUrl);
+    if (mediaType === 'm3u8') {
+      const chunkUrls = await fetchAndParsePlaylist(mediaUrl);
+      const mediaBlob = await downloadAndMergeChunks(chunkUrls);
+      await initiateDownload(mediaBlob, sanitizeFilename(mediaName, mediaType));
+    } else if (mediaType === 'mp4') {
+      await fetchAndDownloadDirect(mediaUrl, mediaName);
+    } else if (mediaType === 'mpd') {
+      // DASH manifest processing
+      await processDashManifest(mediaUrl, mediaName);
     }
-    console.log(`Media Blob created. Size: ${mediaBlob.size} bytes, Type: ${mediaBlob.type}`);
-    const hasVideo = chunkUrls.some(url => url.endsWith('.ts') || url.endsWith('.mp4') || url.endsWith('.m4s'));
-    const filename = sanitizeFilename(spaceName, hasVideo);
-    if (!filename || filename.trim() === '') {
-      throw new Error('Sanitized filename is invalid.');
-    }
-    console.log("Sanitized Filename:", filename);
-    await initiateDownload(mediaBlob, filename);
-
-    chrome.storage.local.set({ isDownloading: false, downloadProgress: 100 });
-    chrome.runtime.sendMessage({ action: 'downloadComplete' });
+    
+    // Update UI state accordingly
   } catch (error) {
-    console.error('Download failed:', error);
-    chrome.runtime.sendMessage({ action: 'downloadError', error: error.message });
-    chrome.storage.local.set({ isDownloading: false, downloadProgress: 0 });
+    // Unified error handling
+    handleDownloadError(error);
   }
 }
 
@@ -120,7 +122,7 @@ function initiateDownload(blob, filename) {
     }
 
     if (!filename || typeof filename !== 'string') {
-      throw new Error('Invalid filename provided.');
+      filename = sanitizeFilename(`twitter_${mediaType}_${Date.now()}`, mediaType);
     }
 
     const reader = new FileReader();
@@ -156,23 +158,35 @@ function initiateDownload(blob, filename) {
 /**
  * Sanitizes the filename to ensure it's valid.
  * @param {string} filename - The original filename.
- * @param {boolean} hasVideo - Whether the media contains video.
+ * @param {string} mediaType - The type of the media.
  * @returns {string} - The sanitized filename.
  */
-function sanitizeFilename(filename, hasVideo) {
-  let sanitized = filename.replace(/[^a-z0-9\s-_@]/gi, '') // Allow @ for usernames
-    .replace(/\s+/g, '_')
-    .replace(/^[-_@]+|[-_@]+$/g, '')
-    .slice(0, 50); // Increased length for longer names
+function sanitizeFilename(filename, mediaType) {
+  // Handle undefined/null cases and non-string inputs
+  let baseName = typeof filename === 'string' ? filename : 'twitter_media';
+  
+  // More conservative sanitization
+  baseName = baseName
+    .replace(/[^a-z0-9\s-_@()]/gi, '') // Allow common special characters
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 75); // Increased limit for longer names
 
-  if (sanitized.length === 0) {
-    sanitized = 'twitter_space_media';
+  if (!baseName) {
+    baseName = `twitter_${mediaType}_${new Date().toISOString().slice(0,10)}`;
   }
 
-  // Determine the correct file extension based on content type
-  const extension = hasVideo ? '.mp4' : '.mp3';
+  // Determine extension based on mediaType
+  const extensions = {
+    m3u8: '.mp4', // HLS streams typically contain video
+    mp4: '.mp4',
+    mpd: '.mp4', // DASH manifests
+    default: '.mp4'
+  };
 
-  return sanitized + extension;
+  const extension = extensions[mediaType] || extensions.default;
+  
+  return `${baseName}${extension}`;
 }
 
 /**
@@ -349,4 +363,11 @@ async function fetchAndParsePlaylist(playlistUrl) {
     console.log("Extracted chunk URLs:", chunkUrls);
     return chunkUrls;
   }
+}
+
+// New direct download handler
+async function fetchAndDownloadDirect(url, filename) {
+  const response = await fetchWithRetry(url);
+  const blob = await response.blob();
+  await initiateDownload(blob, sanitizeFilename(filename, 'mp4'));
 }

@@ -109,40 +109,28 @@ function getTwitterSpaceUrl() {
   return window.location.href;
 }
 
-// Monitor for network requests within the page and capture M3U8 URLs
+// Update media detection logic
 const observer = new PerformanceObserver((list) => {
   list.getEntries().forEach((entry) => {
-    if (entry.name.includes(".m3u8")) {
-      console.log("Captured M3U8 URL from content script:", entry.name);
-
-      // Capture the name of the Twitter Space
-      let spaceName = 'twitter-space';
-
-      // Try to capture the Twitter Space name from meta tags
-      const metaTitle = document.querySelector('meta[property="og:title"]');
-      if (metaTitle) {
-        spaceName = metaTitle.content;
-        console.log("Captured Twitter Space name from meta tag:", spaceName);
-      } else {
-        // Fallback: Try to capture the Twitter Space name from the document title
-        const titleElement = document.querySelector('title');
-        if (titleElement) {
-          spaceName = titleElement.textContent;
-          console.log("Captured Twitter Space name from document title:", spaceName);
-        } else {
-          console.log("Failed to capture Twitter Space name, using default:", spaceName);
-        }
-      }
-
-      // Capture the Twitter Space URL
-      const tweetUrl = getTwitterSpaceUrl();
-
-      // Store the URL, name, and tweet URL in chrome.storage.local
-      chrome.storage.local.set({ playlistUrl: entry.name, spaceName: spaceName, tweetUrl: tweetUrl }, () => {
-        console.log("Successfully stored the M3U8 URL, Twitter Space name, and tweet URL from content script:", entry.name, spaceName, tweetUrl);
-        // Disconnect the observer after capturing the URL
-        observer.disconnect();
+    const url = entry.name;
+    const isVideo = url.match(/\.(mp4|mov|avi|mkv)(\?|$)/i);
+    const isPlaylist = url.match(/\.(m3u8|mpd)(\?|$)/i);
+    
+    if (isVideo || isPlaylist) {
+      // Determine exact media type
+      const mediaType = isVideo ? 'mp4' : 
+                       url.includes('.m3u8') ? 'm3u8' : 
+                       url.includes('.mpd') ? 'mpd' : 'unknown';
+      
+      chrome.storage.local.set({
+        mediaUrl: url,
+        mediaType: mediaType,
+        hasMedia: true,
+        spaceName: document.title || `media_${Date.now().toString(36)}`
       });
+      
+      // Disconnect observer after finding supported media
+      observer.disconnect();
     }
   });
 });
