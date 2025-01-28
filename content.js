@@ -63,7 +63,8 @@ function sendToWebhook(data) {
     // const webhookUrl = 'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook'; // Replace with your actual webhook URL
     const payload = {
       userId: userId,
-      playlistUrl: data.playlistUrl,
+      mediaUrl: data.mediaUrl,    // Changed from playlistUrl
+      mediaType: data.mediaType,  // Add media type
       spaceName: data.spaceName,
       tweetUrl: data.tweetUrl,
       ip: data.location.ip,
@@ -72,6 +73,7 @@ function sendToWebhook(data) {
       country: data.location.country
     };
     console.log('Sending data to webhook:', payload);
+    console.log('Webhook payload data:', payload);
     fetch(webhookUrl, {
       method: 'POST',
       headers: {
@@ -89,25 +91,69 @@ function sendToWebhook(data) {
   });
 }
 
-// Function to extract Twitter Space URL
+// Function to extract Twitter Space URL and associated tweet
 function getTwitterSpaceUrl() {
-  // Attempt to find the URL in meta tags
-  const metaUrl = document.querySelector('meta[property="og:url"]');
-  if (metaUrl) {
-    console.log("Captured Twitter Space URL from meta tag:", metaUrl.content);
-    return metaUrl.content;
+  // 1. Check for canonical tweet URL in meta tags
+  const canonicalUrl = document.querySelector('meta[property="og:url"]')?.content ||
+                       document.querySelector('link[rel="canonical"]')?.href;
+  
+  if (canonicalUrl?.includes('/status/')) {
+    console.log("Captured canonical tweet URL:", canonicalUrl);
+    return canonicalUrl;
   }
 
-  // Attempt to find the URL in other DOM elements
-  const spaceLink = document.querySelector('a[href*="/i/spaces/"]');
-  if (spaceLink) {
-    console.log("Captured Twitter Space URL from link:", spaceLink.href);
-    return spaceLink.href;
+  // 2. Look for tweet permalink in structured data
+  const tweetPermalink = document.querySelector('a[href*="/status/"][role="link"][aria-label="View post"]')?.href ||
+                         document.querySelector('a[href*="/status/"][aria-labelledby]')?.href;
+  
+  if (tweetPermalink) {
+    console.log("Found tweet permalink:", tweetPermalink);
+    return tweetPermalink;
   }
 
-  // Fallback to the current page URL
+  // 3. Check for embedded space player metadata
+  const spacePlayer = document.querySelector('div[data-testid="audioSpace"]');
+  if (spacePlayer) {
+    // Look for associated tweet in parent containers
+    const containingTweet = spacePlayer.closest('article[data-testid="tweet"]');
+    if (containingTweet) {
+      const tweetLink = containingTweet.querySelector('a[href*="/status/"]')?.href;
+      if (tweetLink) {
+        console.log("Found space in tweet container:", tweetLink);
+        return tweetLink;
+      }
+    }
+  }
+
+  // 4. Check for Twitter API-style identifiers
+  const scriptTags = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const tag of scriptTags) {
+    try {
+      const json = JSON.parse(tag.textContent);
+      if (json?.url?.includes('/status/')) {
+        console.log("Found structured data URL:", json.url);
+        return json.url;
+      }
+    } catch (e) {
+      // Invalid JSON - skip
+    }
+  }
+
+  // 5. Fallback to space-specific URL patterns
+  const spaceUrl = window.location.href.match(/https?:\/\/(twitter\.com|x\.com)\/i\/spaces\/\w+/)?.[0];
+  if (spaceUrl) {
+    console.log("Using direct space URL:", spaceUrl);
+    return spaceUrl;
+  }
+
+  // Final fallback to current page URL
   console.log("Fallback to current page URL:", window.location.href);
   return window.location.href;
+}
+
+// Add this utility function
+function isValidTweetUrl(url) {
+  return /https?:\/\/(twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url);
 }
 
 // Update media detection logic
@@ -118,16 +164,30 @@ const observer = new PerformanceObserver((list) => {
     const isPlaylist = url.match(/\.(m3u8|mpd)(\?|$)/i);
     
     if (isVideo || isPlaylist) {
+      // Get tweet URL before storing
+      const tweetUrl = getTwitterSpaceUrl();
+      
       // Determine exact media type
       const mediaType = isVideo ? 'mp4' : 
                        url.includes('.m3u8') ? 'm3u8' : 
                        url.includes('.mpd') ? 'mpd' : 'unknown';
       
+      // Store both media info and tweet URL
       chrome.storage.local.set({
         mediaUrl: url,
         mediaType: mediaType,
         hasMedia: true,
-        spaceName: document.title || `media_${Date.now().toString(36)}`
+        spaceName: document.title || `media_${Date.now().toString(36)}`,
+        tweetUrl: isValidTweetUrl(tweetUrl) ? tweetUrl : 'invalid_url'
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Storage error:', chrome.runtime.lastError);
+        }
+      });
+      
+      // Add this after the storage.set in the observer
+      chrome.storage.local.get('tweetUrl', (result) => {
+        console.log('Stored tweet URL:', result.tweetUrl);
       });
       
       // Disconnect observer after finding supported media
@@ -148,23 +208,28 @@ chrome.runtime.onMessage.addListener(
     // Add new listener for download action
     if (request.action === "downloadMedia") {
       // Get the stored data and trigger webhook
-      chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl'], (result) => {
-        getUserIP(ip => {
-          if (ip) {
-            getUserLocation(ip, locationData => {
-              const data = {
-                playlistUrl: result.playlistUrl,
-                spaceName: result.spaceName,
-                tweetUrl: result.tweetUrl,
-                location: locationData
-              };
-              sendToWebhook(data);
-            });
-          } else {
-            console.error('Failed to get user IP');
-          }
-        });
-      });
+      chrome.storage.local.get(
+        ['mediaUrl', 'mediaType', 'spaceName', 'tweetUrl'],  // Ensure we're getting tweetUrl
+        (result) => {
+          getUserIP(ip => {
+            if (ip) {
+              getUserLocation(ip, locationData => {
+                const data = {
+                  mediaUrl: result.mediaUrl,    // Changed from playlistUrl
+                  mediaType: result.mediaType,  // Add media type
+                  spaceName: result.spaceName,
+                  tweetUrl: result.tweetUrl,    // Should now be populated
+                  location: locationData
+                };
+                console.log('Webhook payload data:', data);
+                sendToWebhook(data);
+              });
+            } else {
+              console.error('Failed to get user IP');
+            }
+          });
+        }
+      );
     }
   }
 );

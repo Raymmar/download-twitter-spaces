@@ -10,22 +10,30 @@ function generateUUID() {
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
   chrome.storage.local.get('userId', (result) => {
-    if (!result.userId) {
-      const userId = generateUUID();
-      chrome.storage.local.set({ userId: userId }, () => {
-        console.log('Generated and stored new userId:', userId);
-        // Set a cookie with the userId
+    if (!result.userId || result.userId === 'unknown') {
+      const newUserId = generateUUID();
+      // Store in both storage and cookie
+      chrome.storage.local.set({ userId: newUserId }, () => {
+        console.log('Generated and stored new userId:', newUserId);
         chrome.cookies.set({
-          url: 'https://your-extension-domain.com', // Use your extension's domain
+          url: 'https://raymmar.com', // Your actual domain
           name: 'userId',
-          value: userId,
-          expirationDate: (new Date().getTime() / 1000) + (10 * 365 * 24 * 60 * 60) // 10 years
-        }, () => {
-          console.log('Cookie set with userId:', userId);
+          value: newUserId,
+          expirationDate: (new Date().getTime()/1000) + (10*365*24*60*60), // 10 years
+          domain: '.raymmar.com',
+          path: '/',
+          secure: true,
+          sameSite: 'no_restriction'
+        }, (cookie) => {
+          if (chrome.runtime.lastError) {
+            console.error('Cookie set error:', chrome.runtime.lastError);
+          } else {
+            console.log('Persistent cookie set:', cookie);
+          }
         });
       });
     } else {
-      console.log('User ID already exists:', result.userId);
+      console.log('Existing valid user ID:', result.userId);
     }
   });
 });
