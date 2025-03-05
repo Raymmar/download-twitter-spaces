@@ -63,11 +63,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Function to activate the button
   function activateButton() {
-    downloadButton.disabled = false;
-    downloadButton.textContent = 'Download Media';
-    downloadButton.style.backgroundColor = '#9c64fb'; // Twitter Spaces purple
-    downloadButton.style.cursor = 'pointer';
-    console.log('Button activated');
+    chrome.storage.local.get('mediaType', ({ mediaType }) => {
+      const buttonLabels = {
+        m3u8: 'Download Space Recording',
+        mp4: 'Download Video',
+        mpd: 'Download Stream',
+        default: 'Download Media'
+      };
+      
+      downloadButton.disabled = false;
+      downloadButton.textContent = buttonLabels[mediaType] || buttonLabels.default;
+      downloadButton.style.backgroundColor = '#9c64fb';
+      downloadButton.style.cursor = 'pointer';
+    });
   }
 
   // Function to show the progress bar and hide the button
@@ -98,25 +106,20 @@ document.addEventListener('DOMContentLoaded', function () {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       const currentTab = tabs[0];
       const url = currentTab.url;
+      const validDomains = ['twitter.com', 'x.com', 'pscp.tv'];
 
-      if (url.includes('twitter.com') || url.includes('x.com')) {
-        // Check if an M3U8 URL has been identified
-        chrome.storage.local.get('playlistUrl', function (data) {
-          const playlistUrl = data.playlistUrl;
-          console.log('Checking URL:', url, 'Playlist URL:', playlistUrl);
-
-          if (playlistUrl) {
-            // Enable the button if the URL is from Twitter or X.com and an M3U8 URL is identified
+      if (validDomains.some(domain => url.includes(domain))) {
+        chrome.storage.local.get(['mediaUrl', 'hasMedia'], function (data) {
+          if (data.hasMedia) {
             activateButton();
           } else {
-            // Disable the button if no M3U8 URL is identified
             resetButtonState();
+            updateStatus('Play media to enable download');
           }
         });
       } else {
-        // Disable the button if the URL is not from Twitter or X.com
         resetButtonState();
-        updateStatus('Not available on this URL');
+        updateStatus('Not available on this website');
       }
     });
   }
@@ -125,22 +128,21 @@ document.addEventListener('DOMContentLoaded', function () {
   chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
     if (changeInfo.url) {
       // Clear the stored M3U8 URL and reset the button state
-      chrome.storage.local.remove('playlistUrl', function () {
-        console.log('Cleared stored M3U8 URL due to URL change');
-        resetButtonState();
-      });
+      chrome.storage.local.remove(
+        ['mediaUrl', 'playlistUrl', 'hasMedia'], 
+        function() {
+          console.log('Cleared media URLs due to URL change');
+          resetButtonState();
+        }
+      );
     }
   });
 
   // Listen for changes in local storage to update the button state
   chrome.storage.onChanged.addListener(function (changes, areaName) {
-    if (areaName === 'local' && changes.playlistUrl) {
-      if (changes.playlistUrl.newValue) {
-        console.log('Playlist URL changed, activating button');
-        activateButton();
-      } else {
-        console.log('Playlist URL removed, resetting button');
-        resetButtonState();
+    if (areaName === 'local') {
+      if (changes.mediaType || changes.hasMedia) {
+        checkUrl(); // Re-check when media status changes
       }
     }
   });
@@ -231,18 +233,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     try {
-      const { playlistUrl, spaceName = 'twitter_space', tweetUrl } = await chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl']);
-      console.log('Retrieved from storage:', { playlistUrl, spaceName, tweetUrl });
+      const { mediaUrl, mediaType, spaceName = 'twitter_media' } = 
+        await chrome.storage.local.get(['mediaUrl', 'mediaType', 'spaceName']);
 
-      if (!playlistUrl) {
-        throw new Error('No M3U8 URL found in storage.');
+      console.log('Retrieved from storage:', { mediaUrl, mediaType, spaceName });
+
+      if (!mediaUrl) {
+        throw new Error('No media URL found in storage.');
       }
 
-      console.log('Sending startDownload message to background script');
+      console.log('Sending startDownload message with mediaType:', mediaType);
       chrome.runtime.sendMessage({ 
         action: 'startDownload', 
-        playlistUrl, 
-        spaceName: String(spaceName).trim() || 'twitter_space'
+        mediaUrl,
+        mediaType,
+        mediaName: String(spaceName).trim() || 'twitter_media'
       });
     } catch (error) {
       console.error('Process failed:', error);
@@ -281,6 +286,25 @@ document.addEventListener('DOMContentLoaded', function () {
   chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
     if (changeInfo.url) {
       checkUrl();
+    }
+  });
+
+  // Update button text based on media type
+  function updateButtonState(mediaType) {
+    const buttonText = {
+      m3u8: 'Download Space Recording',
+      mp4: 'Download Video',
+      mpd: 'Download Stream',
+      default: 'Download Media'
+    };
+    
+    downloadButton.textContent = buttonText[mediaType] || buttonText.default;
+  }
+
+  // Modify storage listener
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.mediaType) {
+      updateButtonState(changes.mediaType.newValue);
     }
   });
 });

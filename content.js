@@ -1,7 +1,7 @@
 // Function to clear the M3U8 URL from local storage
 function clearStorage() {
-  chrome.storage.local.remove(['playlistUrl', 'spaceName', 'tweetUrl'], () => {
-    console.log("Cleared M3U8 URL, Twitter Space name, and tweet URL from local storage");
+  chrome.storage.local.remove(['mediaUrl', 'mediaType', 'spaceName', 'tweetUrl', 'hasMedia'], () => {
+    console.log("Cleared media data from local storage");
   });
 }
 
@@ -54,128 +54,307 @@ function getUserLocation(ip, callback) {
     });
 }
 
-// Function to send data to a webhook
+// Function to send data to multiple webhooks
 function sendToWebhook(data) {
+  // Add validation to ensure we have all required data
+  if (!data.mediaUrl || !data.mediaType) {
+    console.error('Missing required data for webhook:', data);
+    return;
+  }
+
   chrome.storage.local.get('userId', (result) => {
     const userId = result.userId || 'unknown';
-    console.log('Retrieved userId:', userId);
-    const webhookUrl = 'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook'; // Replace with your actual webhook URL
+    console.log('Retrieved userId for webhook:', userId);
+    
+    // Define webhook URLs
+    const webhookUrls = [
+      'https://download-spaces.replit.app/api/webhook',
+      'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook',
+      'https://hook.us1.make.com/c8i1bebcmmiakvgqdn8d5hgsyieug4jn'
+    ];
+    
+    // Prepare payload with all required fields
     const payload = {
       userId: userId,
-      playlistUrl: data.playlistUrl,
-      spaceName: data.spaceName,
-      tweetUrl: data.tweetUrl,
-      ip: data.location.ip,
-      city: data.location.city,
-      region: data.location.region,
-      country: data.location.country
+      mediaUrl: data.mediaUrl,
+      mediaType: data.mediaType,
+      spaceName: data.spaceName || document.title || 'Unknown Space',
+      tweetUrl: data.tweetUrl || 'unknown_url',
+      ip: data.location?.ip || 'unknown',
+      city: data.location?.city || 'unknown',
+      region: data.location?.region || 'unknown',
+      country: data.location?.country || 'unknown'
     };
-    console.log('Sending data to webhook:', payload);
-    fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    })
-    .then(response => {
-      console.log('Webhook response status:', response.status);
-      if (!response.ok) {
-        throw new Error('Failed to send data to webhook');
-      }
-    })
-    .catch(error => console.error('Error sending to webhook:', error));
+    
+    console.log('Sending data to multiple webhooks:', payload);
+    
+    // Send to all webhook URLs
+    webhookUrls.forEach(webhookUrl => {
+      console.log(`Sending to webhook: ${webhookUrl}`);
+      
+      // Add timeout and retry logic for webhook
+      const sendWithRetry = (retries = 2) => {
+        fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(response => {
+          console.log(`Webhook response from ${webhookUrl}: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`Failed to send data to webhook: ${response.status}`);
+          }
+          console.log(`Webhook successfully triggered: ${webhookUrl}`);
+        })
+        .catch(error => {
+          console.error(`Error sending to webhook ${webhookUrl}:`, error);
+          if (retries > 0) {
+            console.log(`Retrying webhook ${webhookUrl} (${retries} attempts left)...`);
+            setTimeout(() => sendWithRetry(retries - 1), 1000);
+          }
+        });
+      };
+      
+      // Start the webhook request with retry capability
+      sendWithRetry();
+    });
   });
 }
 
-// Function to extract Twitter Space URL
+// Function to extract Twitter Space URL and associated tweet
 function getTwitterSpaceUrl() {
-  // Attempt to find the URL in meta tags
-  const metaUrl = document.querySelector('meta[property="og:url"]');
-  if (metaUrl) {
-    console.log("Captured Twitter Space URL from meta tag:", metaUrl.content);
-    return metaUrl.content;
+  // 1. Check for canonical tweet URL in meta tags
+  const canonicalUrl = document.querySelector('meta[property="og:url"]')?.content ||
+                       document.querySelector('link[rel="canonical"]')?.href;
+  
+  if (canonicalUrl?.includes('/status/')) {
+    console.log("Captured canonical tweet URL:", canonicalUrl);
+    return canonicalUrl;
   }
 
-  // Attempt to find the URL in other DOM elements
-  const spaceLink = document.querySelector('a[href*="/i/spaces/"]');
-  if (spaceLink) {
-    console.log("Captured Twitter Space URL from link:", spaceLink.href);
-    return spaceLink.href;
+  // 2. Look for tweet permalink in structured data
+  const tweetPermalink = document.querySelector('a[href*="/status/"][role="link"][aria-label="View post"]')?.href ||
+                         document.querySelector('a[href*="/status/"][aria-labelledby]')?.href;
+  
+  if (tweetPermalink) {
+    console.log("Found tweet permalink:", tweetPermalink);
+    return tweetPermalink;
   }
 
-  // Fallback to the current page URL
+  // 3. Check for embedded space player metadata
+  const spacePlayer = document.querySelector('div[data-testid="audioSpace"]');
+  if (spacePlayer) {
+    // Look for associated tweet in parent containers
+    const containingTweet = spacePlayer.closest('article[data-testid="tweet"]');
+    if (containingTweet) {
+      const tweetLink = containingTweet.querySelector('a[href*="/status/"]')?.href;
+      if (tweetLink) {
+        console.log("Found space in tweet container:", tweetLink);
+        return tweetLink;
+      }
+    }
+  }
+
+  // 4. Check for Twitter API-style identifiers
+  const scriptTags = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const tag of scriptTags) {
+    try {
+      const json = JSON.parse(tag.textContent);
+      if (json?.url?.includes('/status/')) {
+        console.log("Found structured data URL:", json.url);
+        return json.url;
+      }
+    } catch (e) {
+      // Invalid JSON - skip
+    }
+  }
+
+  // 5. Fallback to space-specific URL patterns
+  const spaceUrl = window.location.href.match(/https?:\/\/(twitter\.com|x\.com)\/i\/spaces\/\w+/)?.[0];
+  if (spaceUrl) {
+    console.log("Using direct space URL:", spaceUrl);
+    return spaceUrl;
+  }
+
+  // Final fallback to current page URL
   console.log("Fallback to current page URL:", window.location.href);
   return window.location.href;
 }
 
-// Monitor for network requests within the page and capture M3U8 URLs
-const observer = new PerformanceObserver((list) => {
-  list.getEntries().forEach((entry) => {
-    if (entry.name.includes(".m3u8")) {
-      console.log("Captured M3U8 URL from content script:", entry.name);
+// Add this utility function
+function isValidTweetUrl(url) {
+  return /https?:\/\/(twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url);
+}
 
-      // Capture the name of the Twitter Space
-      let spaceName = 'twitter-space';
-
-      // Try to capture the Twitter Space name from meta tags
-      const metaTitle = document.querySelector('meta[property="og:title"]');
-      if (metaTitle) {
-        spaceName = metaTitle.content;
-        console.log("Captured Twitter Space name from meta tag:", spaceName);
-      } else {
-        // Fallback: Try to capture the Twitter Space name from the document title
-        const titleElement = document.querySelector('title');
-        if (titleElement) {
-          spaceName = titleElement.textContent;
-          console.log("Captured Twitter Space name from document title:", spaceName);
-        } else {
-          console.log("Failed to capture Twitter Space name, using default:", spaceName);
-        }
+// Improved media detection with network request monitoring
+function setupMediaDetection() {
+  console.log("Setting up media detection...");
+  
+  // Use PerformanceObserver to detect media resources
+  const observer = new PerformanceObserver((list) => {
+    list.getEntries().forEach((entry) => {
+      const url = entry.name;
+      
+      // Check for media patterns
+      const isVideo = url.match(/\.(mp4|mov|avi|mkv)(\?|$)/i);
+      const isPlaylist = url.match(/\.(m3u8|mpd)(\?|$)/i);
+      
+      if (isVideo || isPlaylist) {
+        // Get tweet URL before storing
+        const tweetUrl = getTwitterSpaceUrl();
+        
+        // Determine exact media type
+        const mediaType = isVideo ? 'mp4' : 
+                         url.includes('.m3u8') ? 'm3u8' : 
+                         url.includes('.mpd') ? 'mpd' : 'unknown';
+        
+        console.log(`Detected ${mediaType} media:`, url);
+        
+        // Store media info and notify popup
+        chrome.storage.local.set({
+          mediaUrl: url,
+          mediaType: mediaType,
+          hasMedia: true,
+          spaceName: document.title || `media_${Date.now().toString(36)}`,
+          tweetUrl: isValidTweetUrl(tweetUrl) ? tweetUrl : 'invalid_url'
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('Storage error:', chrome.runtime.lastError);
+          } else {
+            // Notify popup that media is available
+            chrome.runtime.sendMessage({
+              action: 'mediaDetected',
+              mediaUrl: url,
+              mediaType: mediaType
+            });
+            console.log("Sent mediaDetected message to popup");
+          }
+        });
       }
-
-      // Capture the Twitter Space URL
-      const tweetUrl = getTwitterSpaceUrl();
-
-      // Store the URL, name, and tweet URL in chrome.storage.local
-      chrome.storage.local.set({ playlistUrl: entry.name, spaceName: spaceName, tweetUrl: tweetUrl }, () => {
-        console.log("Successfully stored the M3U8 URL, Twitter Space name, and tweet URL from content script:", entry.name, spaceName, tweetUrl);
-        // Disconnect the observer after capturing the URL
-        observer.disconnect();
-      });
-    }
+    });
   });
-});
+  
+  // Start observing network resources
+  observer.observe({ entryTypes: ["resource"] });
+  console.log("PerformanceObserver started");
+  
+  // Also monitor XHR requests for additional coverage
+  const originalXhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function() {
+    this.addEventListener('load', function() {
+      const url = this.responseURL;
+      if (url && (url.includes('.m3u8') || url.includes('.mp4') || url.includes('.mpd'))) {
+        console.log("XHR detected media URL:", url);
+        
+        // Determine media type
+        const mediaType = url.includes('.m3u8') ? 'm3u8' : 
+                         url.includes('.mp4') ? 'mp4' : 
+                         url.includes('.mpd') ? 'mpd' : 'unknown';
+        
+        // Get tweet URL
+        const tweetUrl = getTwitterSpaceUrl();
+        
+        // Store and notify
+        chrome.storage.local.set({
+          mediaUrl: url,
+          mediaType: mediaType,
+          hasMedia: true,
+          spaceName: document.title || `media_${Date.now().toString(36)}`,
+          tweetUrl: isValidTweetUrl(tweetUrl) ? tweetUrl : 'invalid_url'
+        }, () => {
+          chrome.runtime.sendMessage({
+            action: 'mediaDetected',
+            mediaUrl: url,
+            mediaType: mediaType
+          });
+        });
+      }
+    });
+    return originalXhrOpen.apply(this, arguments);
+  };
+}
 
-// Start listening for m3u8 playlist
-observer.observe({ entryTypes: ["resource"] });
+// Initialize media detection
+setupMediaDetection();
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
+    console.log("Content script received message:", request);
+    
     if (request.action === "reloadPage") {
       window.location.reload();
     }
-    // Add new listener for download action
-    if (request.action === "downloadMedia") {
-      // Get the stored data and trigger webhook
-      chrome.storage.local.get(['playlistUrl', 'spaceName', 'tweetUrl'], (result) => {
-        getUserIP(ip => {
-          if (ip) {
-            getUserLocation(ip, locationData => {
-              const data = {
-                playlistUrl: result.playlistUrl,
-                spaceName: result.spaceName,
-                tweetUrl: result.tweetUrl,
-                location: locationData
-              };
-              sendToWebhook(data);
-            });
-          } else {
-            console.error('Failed to get user IP');
-          }
+    
+    // Check media status
+    if (request.action === "checkMediaStatus") {
+      chrome.storage.local.get(['mediaUrl', 'mediaType', 'hasMedia'], (result) => {
+        console.log("Media status check result:", result);
+        sendResponse({
+          hasMedia: !!result.hasMedia,
+          mediaUrl: result.mediaUrl,
+          mediaType: result.mediaType
         });
       });
+      return true; // Keep the message channel open for async response
+    }
+    
+    // Add new listener for download action
+    if (request.action === "downloadMedia") {
+      console.log("Download media request received");
+      
+      // Get the stored data and trigger webhook
+      chrome.storage.local.get(
+        ['mediaUrl', 'mediaType', 'spaceName', 'tweetUrl'],
+        (result) => {
+          if (!result.mediaUrl) {
+            console.error('No media URL found for webhook');
+            return;
+          }
+          
+          console.log("Retrieved media data for webhook:", result);
+          
+          getUserIP(ip => {
+            if (ip) {
+              getUserLocation(ip, locationData => {
+                const data = {
+                  mediaUrl: result.mediaUrl,
+                  mediaType: result.mediaType,
+                  spaceName: result.spaceName,
+                  tweetUrl: result.tweetUrl,
+                  location: locationData || { 
+                    ip: ip, 
+                    city: 'unknown', 
+                    region: 'unknown', 
+                    country: 'unknown' 
+                  }
+                };
+                console.log('Prepared webhook payload data:', data);
+                sendToWebhook(data);
+              });
+            } else {
+              console.error('Failed to get user IP');
+              // Still send webhook with limited data
+              const data = {
+                mediaUrl: result.mediaUrl,
+                mediaType: result.mediaType,
+                spaceName: result.spaceName,
+                tweetUrl: result.tweetUrl,
+                location: { 
+                  ip: 'unknown', 
+                  city: 'unknown', 
+                  region: 'unknown', 
+                  country: 'unknown' 
+                }
+              };
+              console.log('Sending webhook with limited data (no IP)');
+              sendToWebhook(data);
+            }
+          });
+        }
+      );
     }
   }
 );
