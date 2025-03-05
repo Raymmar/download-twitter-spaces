@@ -8,7 +8,14 @@ function generateUUID() {
 
 // Set up the extension on installation
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
+  chrome.storage.local.set({ 
+    isDownloading: false, 
+    downloadComplete: false,
+    hasMedia: false,
+    mediaUrl: null,
+    mediaType: null
+  });
+  
   chrome.storage.local.get('userId', (result) => {
     if (!result.userId || result.userId === 'unknown') {
       const newUserId = generateUUID();
@@ -39,7 +46,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 /**
- * Handles completed network requests and captures M3U8 URLs.
+ * Handles completed network requests and captures media URLs.
  * @param {Object} details - Details of the completed request.
  */
 function onRequestCompleted(details) {
@@ -57,12 +64,20 @@ function onRequestCompleted(details) {
   )?.[0];
 
   if (detectedType) {
-    console.log(`Detected ${detectedType.toUpperCase()} URL:`, details.url);
+    console.log(`Background: Detected ${detectedType.toUpperCase()} URL:`, details.url);
+    
     chrome.storage.local.set({ 
       mediaUrl: details.url,
-      mediaType: detectedType 
+      mediaType: detectedType,
+      hasMedia: true
+    }, () => {
+      // Notify any open popups about the detected media
+      chrome.runtime.sendMessage({
+        action: 'mediaDetected',
+        mediaUrl: details.url,
+        mediaType: detectedType
+      });
     });
-    chrome.webRequest.onCompleted.removeListener(onRequestCompleted);
   }
 }
 
@@ -72,52 +87,93 @@ chrome.webRequest.onCompleted.addListener(onRequestCompleted, {
     "*://*.pscp.tv/*",
     "*://*.twitter.com/*",
     "*://*.x.com/*",
-    "*://*.video.pscp.tv/*"
+    "*://*.video.pscp.tv/*",
+    "*://*.twimg.com/*" // Add Twitter's image/media domain
   ]
-});
+}, ["responseHeaders"]);
 
 // Update the tab listener to only reset on relevant domains
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const validDomains = ['twitter.com', 'x.com', 'pscp.tv'];
   
   if (changeInfo.status === 'complete' && tab.url && validDomains.some(d => tab.url.includes(d))) {
-    chrome.storage.local.clear(() => {
-      console.log('Resetting state for domain:', tab.url);
-      chrome.storage.local.set({ 
-        isDownloading: false,
-        downloadComplete: false,
-        mediaUrl: null,
-        mediaType: null
-      });
-      // Re-add the webRequest listener for new page load
-      chrome.webRequest.onCompleted.addListener(onRequestCompleted, {
-        urls: ["*://*.twitter.com/*", "*://*.x.com/*", "*://*.pscp.tv/*"]
+    // Preserve userId when resetting state
+    chrome.storage.local.get('userId', (result) => {
+      const userId = result.userId;
+      
+      chrome.storage.local.clear(() => {
+        console.log('Resetting state for domain:', tab.url);
+        chrome.storage.local.set({ 
+          isDownloading: false,
+          downloadComplete: false,
+          mediaUrl: null,
+          mediaType: null,
+          hasMedia: false,
+          userId: userId // Restore userId
+        });
       });
     });
   }
 });
 
-// Modify the existing resetState handler to maintain userId
+// Listen for messages from content script or popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Background received message:", message);
+  
   if (message.action === 'resetState') {
     chrome.storage.local.get('userId', (result) => {
+      const userId = result.userId;
+      
       chrome.storage.local.clear(() => {
         console.log('Background: Storage cleared except userId');
-        if (result.userId) {
-          chrome.storage.local.set({ userId: result.userId });
-        }
-        // Reset other initial states
-        chrome.storage.local.set({
+        chrome.storage.local.set({ 
+          userId: userId,
           isDownloading: false,
           downloadComplete: false,
           mediaUrl: null,
-          mediaType: null
+          mediaType: null,
+          hasMedia: false
         });
       });
     });
   }
+  
   if (message.action === 'startDownload') {
     startDownload(message.mediaUrl, message.mediaType, message.mediaName);
+  }
+  
+  // Forward media detection to any open popups
+  if (message.action === 'mediaDetected') {
+    chrome.runtime.sendMessage(message);
+  }
+  
+  // Check media status request from popup
+  if (message.action === 'checkMediaStatus') {
+    chrome.storage.local.get(['mediaUrl', 'mediaType', 'hasMedia'], (result) => {
+      sendResponse({
+        hasMedia: !!result.hasMedia,
+        mediaUrl: result.mediaUrl,
+        mediaType: result.mediaType
+      });
+    });
+    return true; // Keep the message channel open for async response
+  }
+
+  if (message.action === 'triggerWebhook') {
+    // Forward the webhook trigger to the active tab's content script
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "downloadMedia",
+          mediaUrl: message.mediaUrl,
+          mediaType: message.mediaType,
+          mediaName: message.mediaName
+        });
+        console.log("Forwarded webhook trigger to content script");
+      } else {
+        console.error("No active tab found to trigger webhook");
+      }
+    });
   }
 });
 
@@ -132,6 +188,19 @@ async function startDownload(mediaUrl, mediaType, mediaName) {
     chrome.storage.local.set({ isDownloading: true, downloadProgress: 0 });
     
     console.log(`Starting ${mediaType} download from:`, mediaUrl);
+    
+    // Trigger webhook via content script
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "downloadMedia",
+          mediaUrl: mediaUrl,
+          mediaType: mediaType
+        });
+        console.log("Triggered webhook for download");
+      }
+    });
+    
     if (mediaType === 'm3u8') {
       const chunkUrls = await fetchAndParsePlaylist(mediaUrl);
       const mediaBlob = await downloadAndMergeChunks(chunkUrls);
@@ -197,6 +266,19 @@ function initiateDownload(blob, filename) {
 }
 
 /**
+ * Handles download errors and updates UI accordingly.
+ * @param {Error} error - The error that occurred.
+ */
+function handleDownloadError(error) {
+  console.error('Download error:', error);
+  chrome.storage.local.set({ isDownloading: false, downloadComplete: false });
+  chrome.runtime.sendMessage({ 
+    action: 'downloadError', 
+    error: error.message || 'Unknown download error'
+  });
+}
+
+/**
  * Sanitizes the filename to ensure it's valid.
  * @param {string} filename - The original filename.
  * @param {string} mediaType - The type of the media.
@@ -219,7 +301,7 @@ function sanitizeFilename(filename, mediaType) {
 
   // Determine extension based on mediaType
   const extensions = {
-    m3u8: '.mp4', // HLS streams typically contain video
+    m3u8: '.mp3', // HLS streams typically contain video
     mp4: '.mp4',
     mpd: '.mp4', // DASH manifests
     default: '.mp4'
