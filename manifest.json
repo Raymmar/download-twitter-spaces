@@ -11,6 +11,7 @@
     "permissions": [
       "storage",
       "activeTab",
+      "scripting",
       "webRequest",
       "downloads"
     ],

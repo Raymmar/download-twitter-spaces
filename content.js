@@ -69,8 +69,8 @@ function sendToWebhook(data) {
     // Define webhook URLs
     const webhookUrls = [
       'https://download-spaces.replit.app/api/webhook',
-      'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook',
-      'https://hook.us1.make.com/c8i1bebcmmiakvgqdn8d5hgsyieug4jn'
+      //'https://7114d5ac-a855-4723-bf77-ff79f4f28037-00-ffhh8owu34jh.spock.replit.dev/api/webhook',
+      //'https://hook.us1.make.com/c8i1bebcmmiakvgqdn8d5hgsyieug4jn'
     ];
     
     // Prepare payload with all required fields

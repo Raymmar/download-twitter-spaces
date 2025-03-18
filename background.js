@@ -189,18 +189,19 @@ async function startDownload(mediaUrl, mediaType, mediaName) {
     
     console.log(`Starting ${mediaType} download from:`, mediaUrl);
     
-    // Trigger webhook via content script
+    // Fire webhook exactly once at the start of download
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       if (tabs[0]) {
+        // Send single webhook trigger
         chrome.tabs.sendMessage(tabs[0].id, {
           action: "downloadMedia",
           mediaUrl: mediaUrl,
           mediaType: mediaType
-        });
-        console.log("Triggered webhook for download");
+        }, () => console.log("Webhook trigger sent once for download initiation"));
       }
     });
     
+    // Process the download based on media type
     if (mediaType === 'm3u8') {
       const chunkUrls = await fetchAndParsePlaylist(mediaUrl);
       const mediaBlob = await downloadAndMergeChunks(chunkUrls);
@@ -208,13 +209,10 @@ async function startDownload(mediaUrl, mediaType, mediaName) {
     } else if (mediaType === 'mp4') {
       await fetchAndDownloadDirect(mediaUrl, mediaName);
     } else if (mediaType === 'mpd') {
-      // DASH manifest processing
       await processDashManifest(mediaUrl, mediaName);
     }
     
-    // Update UI state accordingly
   } catch (error) {
-    // Unified error handling
     handleDownloadError(error);
   }
 }
