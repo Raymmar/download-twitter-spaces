@@ -6,6 +6,7 @@ function generateUUID() {
   });
 }
 
+
 // Set up the extension on installation
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ 
