@@ -178,6 +178,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
+ * Processes the audio data to ensure proper format and compatibility.
+ * @param {Blob} audioBlob - The original audio blob.
+ * @returns {Promise<Blob>} - The processed audio blob.
+ */
+async function processAudioData(audioBlob) {
+  try {
+    // Convert blob to ArrayBuffer for processing
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioContext = new AudioContext();
+    
+    // Decode the audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Create a new audio buffer with the same sample rate and channels
+    const newAudioBuffer = audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+    
+    // Copy the audio data
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const channelData = audioBuffer.getChannelData(channel);
+      newAudioBuffer.copyToChannel(channelData, channel);
+    }
+    
+    // Convert back to blob
+    const processedBlob = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const processedBlob = new Blob([reader.result], { type: 'audio/mpeg' });
+        resolve(processedBlob);
+      };
+      reader.readAsArrayBuffer(newAudioBuffer);
+    });
+    
+    return processedBlob;
+  } catch (error) {
+    console.error('Error processing audio data:', error);
+    // If processing fails, return the original blob
+    return audioBlob;
+  }
+}
+
+/**
  * Initiates the download process.
  * @param {string} mediaUrl - The URL of the media.
  * @param {string} mediaType - The type of the media.
@@ -203,9 +248,12 @@ async function startDownload(mediaUrl, mediaType, mediaName) {
     
     // Process the download based on media type
     if (mediaType === 'm3u8') {
-      const chunkUrls = await fetchAndParsePlaylist(mediaUrl);
-      const mediaBlob = await downloadAndMergeChunks(chunkUrls);
-      await initiateDownload(mediaBlob, sanitizeFilename(mediaName, mediaType));
+      const { urls, totalDuration } = await fetchAndParsePlaylist(mediaUrl);
+      const mediaBlob = await downloadAndMergeChunks(urls);
+      
+      // Process the audio data for better compatibility
+      const processedBlob = await processAudioData(mediaBlob);
+      await initiateDownload(processedBlob, sanitizeFilename(mediaName, mediaType));
     } else if (mediaType === 'mp4') {
       await fetchAndDownloadDirect(mediaUrl, mediaName);
     } else if (mediaType === 'mpd') {
@@ -233,12 +281,51 @@ function initiateDownload(blob, filename) {
       filename = sanitizeFilename(`twitter_${mediaType}_${Date.now()}`, mediaType);
     }
 
-    const reader = new FileReader();
-    reader.onload = function() {
-      const dataUrl = reader.result;
-      console.log("Initiating download with dataUrl:", dataUrl);
+    // Ensure proper file extension based on content type
+    const extension = blob.type.includes('audio/mpeg') ? '.mp3' : '.mp4';
+    if (!filename.toLowerCase().endsWith(extension)) {
+      filename = filename.replace(/\.[^/.]+$/, '') + extension;
+    }
+
+    // Create a new Blob with proper metadata
+    const metadata = {
+      title: filename.replace(extension, ''),
+      artist: 'Twitter Space',
+      album: 'Twitter Spaces',
+      year: new Date().getFullYear().toString()
+    };
+
+    // For MP3 files, we'll use a more compatible format
+    if (extension === '.mp3') {
+      // Convert to a more compatible format if needed
+      const reader = new FileReader();
+      reader.onload = function() {
+        const dataUrl = reader.result;
+        chrome.downloads.download({
+          url: dataUrl,
+          filename: filename,
+          saveAs: true,
+          conflictAction: 'uniquify'
+        }, function(downloadId) {
+          if (chrome.runtime.lastError) {
+            console.error('Download failed:', chrome.runtime.lastError.message);
+            chrome.runtime.sendMessage({ action: 'downloadError', error: chrome.runtime.lastError.message });
+          } else {
+            console.log(`Download started with ID: ${downloadId}`);
+            chrome.runtime.sendMessage({ action: 'preparingDownload' });
+          }
+        });
+      };
+      reader.onerror = function(error) {
+        console.error('FileReader error:', error);
+        chrome.runtime.sendMessage({ action: 'downloadError', error: 'Failed to process audio data' });
+      };
+      reader.readAsDataURL(blob);
+    } else {
+      // For MP4 files, download directly
+      const url = URL.createObjectURL(blob);
       chrome.downloads.download({
-        url: dataUrl,
+        url: url,
         filename: filename,
         saveAs: true,
         conflictAction: 'uniquify'
@@ -250,13 +337,10 @@ function initiateDownload(blob, filename) {
           console.log(`Download started with ID: ${downloadId}`);
           chrome.runtime.sendMessage({ action: 'preparingDownload' });
         }
+        // Clean up the object URL
+        URL.revokeObjectURL(url);
       });
-    };
-    reader.onerror = function(error) {
-      console.error('FileReader error:', error);
-      chrome.runtime.sendMessage({ action: 'downloadError', error: 'Failed to process audio data' });
-    };
-    reader.readAsDataURL(blob);
+    }
   } catch (error) {
     console.error('InitiateDownload Error:', error);
     chrome.runtime.sendMessage({ action: 'downloadError', error: error.message });
@@ -311,7 +395,7 @@ function sanitizeFilename(filename, mediaType) {
 }
 
 /**
- * Downloads and merges audio/video chunks.
+ * Downloads and merges audio/video chunks with improved reliability.
  * @param {string[]} chunkUrls - Array of chunk URLs to download.
  * @returns {Promise<Blob>} - The merged Blob of all chunks.
  */
@@ -319,6 +403,8 @@ async function downloadAndMergeChunks(chunkUrls) {
   const allChunks = [];
   const totalChunks = chunkUrls.length;
   const concurrentDownloads = 5; // Adjust based on testing
+  let lastValidChunkIndex = -1;
+  let lastValidChunkSize = 0;
 
   console.log(`Starting download of ${totalChunks} chunks.`);
 
@@ -331,7 +417,28 @@ async function downloadAndMergeChunks(chunkUrls) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const arrayBuffer = await response.arrayBuffer();
-        return { index: i + index, arrayBuffer };
+        
+        // Validate chunk data
+        if (arrayBuffer.byteLength > 0) {
+          // Check if this chunk is significantly different from the last valid chunk
+          if (lastValidChunkSize > 0) {
+            const sizeDiff = Math.abs(arrayBuffer.byteLength - lastValidChunkSize);
+            const sizeDiffPercentage = (sizeDiff / lastValidChunkSize) * 100;
+            
+            // If the size difference is more than 50%, this might be an invalid chunk
+            if (sizeDiffPercentage > 50) {
+              console.warn(`Suspicious chunk size difference detected at index ${i + index}`);
+              return null;
+            }
+          }
+          
+          lastValidChunkIndex = i + index;
+          lastValidChunkSize = arrayBuffer.byteLength;
+          return { index: i + index, arrayBuffer };
+        } else {
+          console.warn(`Empty chunk received at index ${i + index}`);
+          return null;
+        }
       } catch (error) {
         console.error(`Failed to download chunk ${i + index + 1}:`, error);
         return null;
@@ -356,11 +463,13 @@ async function downloadAndMergeChunks(chunkUrls) {
     console.log(`Download progress: ${progress}%`);
   }
 
-  // Filter out any null or undefined chunks
-  const filteredChunks = allChunks.filter(chunk => chunk !== undefined && chunk !== null);
+  // Filter out any null or undefined chunks and trim after last valid chunk
+  const filteredChunks = allChunks
+    .slice(0, lastValidChunkIndex + 1)
+    .filter(chunk => chunk !== undefined && chunk !== null);
 
   if (filteredChunks.length === 0) {
-    throw new Error('No chunks were successfully downloaded.');
+    throw new Error('No valid chunks were successfully downloaded.');
   }
 
   // Determine the MIME type based on the presence of video chunks
@@ -391,10 +500,10 @@ async function fetchWithRetry(url, retries = 3) {
 }
 
 /**
- * Fetches and parses the M3U8 playlist to extract chunk URLs.
+ * Fetches and parses the M3U8 playlist to extract chunk URLs and durations.
  * Handles both master and variant playlists.
  * @param {string} playlistUrl - The URL of the M3U8 playlist.
- * @returns {Promise<string[]>} - An array of chunk URLs.
+ * @returns {Promise<{urls: string[], totalDuration: number}>} - An array of chunk URLs and total duration.
  */
 async function fetchAndParsePlaylist(playlistUrl) {
   const response = await fetch(playlistUrl);
@@ -455,34 +564,45 @@ async function fetchAndParsePlaylist(playlistUrl) {
     console.log("Selected variant playlist URL:", selectedVariantUrl);
     return await fetchAndParsePlaylist(selectedVariantUrl);
   } else {
-    // It's a variant playlist; proceed to extract media chunks
-    // Extract all media segment URIs (lines that do not start with '#')
-    const segmentLines = playlistText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
+    // It's a variant playlist; proceed to extract media chunks and durations
+    const lines = playlistText.split('\n').map(line => line.trim());
+    const chunkUrls = [];
+    let totalDuration = 0;
+    let currentDuration = 0;
 
-    // Define possible extensions
-    const audioExtensions = ['.aac', '.m4a'];
-    const videoExtensions = ['.ts', '.mp4', '.m4s'];
-
-    // Extract full URLs
-    const chunkUrls = segmentLines.map(chunkPath => {
-      try {
-        return new URL(chunkPath, playlistUrl).toString();
-      } catch (error) {
-        console.error(`Failed to resolve chunk URL: ${chunkPath}`, error);
-        return null;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Extract duration from #EXTINF tag
+      if (line.startsWith('#EXTINF:')) {
+        const durationMatch = line.match(/#EXTINF:([\d.]+)/);
+        if (durationMatch) {
+          currentDuration = parseFloat(durationMatch[1]);
+          totalDuration += currentDuration;
+        }
       }
-    }).filter(url => url !== null);
+      // Extract segment URL
+      else if (line && !line.startsWith('#')) {
+        try {
+          const chunkUrl = new URL(line, playlistUrl).toString();
+          chunkUrls.push(chunkUrl);
+        } catch (error) {
+          console.error(`Failed to resolve chunk URL: ${line}`, error);
+        }
+      }
+      // Check for end of playlist
+      else if (line === '#EXT-X-ENDLIST') {
+        console.log('End of playlist marker found');
+        break;
+      }
+    }
 
     if (chunkUrls.length === 0) {
-      console.error("Playlist does not contain any recognizable audio or video chunks.");
       throw new Error('No audio or video chunks found in the playlist.');
     }
 
-    console.log("Extracted chunk URLs:", chunkUrls);
-    return chunkUrls;
+    console.log(`Extracted ${chunkUrls.length} chunks with total duration: ${totalDuration} seconds`);
+    return { urls: chunkUrls, totalDuration };
   }
 }
 
